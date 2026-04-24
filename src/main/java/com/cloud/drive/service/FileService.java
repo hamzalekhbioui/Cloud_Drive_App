@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
+import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -55,6 +56,18 @@ public class FileService {
             entity.setUrl(freshSasUrl);
             return mapToDto(entity);
         }).collect(Collectors.toList());
+    }
+
+    public void streamFile(Long fileId, String userId, HttpServletResponse response) throws IOException {
+        FileEntity file = fileRepository.findById(fileId)
+                .orElseThrow(() -> new ApiException("File not found", HttpStatus.NOT_FOUND));
+        if (!file.getUserId().equals(userId)) {
+            throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
+        }
+        String contentType = (file.getType() != null) ? file.getType() : "application/octet-stream";
+        response.setContentType(contentType);
+        response.setHeader("Content-Disposition", "inline; filename=\"" + file.getOriginalFileName() + "\"");
+        blobStorageService.streamToOutput(file.getBlobFileName(), response.getOutputStream());
     }
 
     @Transactional

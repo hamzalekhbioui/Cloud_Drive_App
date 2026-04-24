@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { getMyFiles, uploadFile, deleteFile } from '../api/files'
 import type { FileItem } from '../api/files'
 import { useAuth } from '../context/AuthContext'
+import FilePreviewModal from '../components/FilePreviewModal'
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
@@ -33,6 +34,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
+  const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -131,6 +133,9 @@ export default function DashboardPage() {
                   <p className="file-meta">{formatBytes(file.size)} · {formatDate(file.createdAt)}</p>
                 </div>
                 <div className="file-actions">
+                  <button className="btn-icon" onClick={() => setPreviewFile(file)} title="Open">
+                    👁
+                  </button>
                   <a href={file.url} target="_blank" rel="noreferrer" className="btn-icon" title="Download">
                     ⬇
                   </a>
@@ -143,6 +148,9 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+      {previewFile && (
+        <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
+      )}
     </div>
   )
 }
