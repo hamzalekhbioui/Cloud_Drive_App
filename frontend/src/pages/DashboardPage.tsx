@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { getMyFiles, uploadFile, deleteFile, FileItem } from '../api/files'
+import { getMyFiles, uploadFile, deleteFile } from '../api/files'
+import type { FileItem } from '../api/files'
 import { useAuth } from '../context/AuthContext'
 
 function formatBytes(bytes: number): string {
