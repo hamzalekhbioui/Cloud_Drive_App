@@ -24,29 +24,22 @@ public class FileController {
     @PostMapping("/upload")
     public ResponseEntity<FileResponseDto> uploadFile(
             @RequestParam("file") MultipartFile file,
-            @AuthenticationPrincipal UserDetails userDetails) {
-        try {
-            FileResponseDto response = fileService.uploadFile(file, userDetails.getUsername());
-            return new ResponseEntity<>(response, HttpStatus.CREATED);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+            @AuthenticationPrincipal UserDetails userDetails) throws Exception {
+        FileResponseDto response = fileService.uploadFile(file, userDetails.getUsername());
+        return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @GetMapping("/me")
     public ResponseEntity<List<FileResponseDto>> getMyFiles(
             @AuthenticationPrincipal UserDetails userDetails) {
-        List<FileResponseDto> files = fileService.getFilesByUser(userDetails.getUsername());
-        return ResponseEntity.ok(files);
+        return ResponseEntity.ok(fileService.getFilesByUser(userDetails.getUsername()));
     }
 
     @DeleteMapping("/{fileId}")
-    public ResponseEntity<Void> deleteFile(@PathVariable Long fileId) {
-        try {
-            fileService.deleteFile(fileId);
-            return ResponseEntity.noContent().build();
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
+    public ResponseEntity<Void> deleteFile(
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        fileService.deleteFile(fileId, userDetails.getUsername());
+        return ResponseEntity.noContent().build();
     }
 }

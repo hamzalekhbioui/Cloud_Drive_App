@@ -1,8 +1,10 @@
 package com.cloud.drive.service;
 
 import com.cloud.drive.dto.FileResponseDto;
+import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.repository.FileRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -56,14 +58,15 @@ public class FileService {
     }
 
     @Transactional
-    public void deleteFile(Long fileId) {
+    public void deleteFile(Long fileId, String userId) {
         FileEntity fileEntity = fileRepository.findById(fileId)
-                .orElseThrow(() -> new RuntimeException("File not found with id: " + fileId));
+                .orElseThrow(() -> new ApiException("File not found", HttpStatus.NOT_FOUND));
 
-        // Delete from Azure
+        if (!fileEntity.getUserId().equals(userId)) {
+            throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
+        }
+
         blobStorageService.deleteFile(fileEntity.getBlobFileName());
-
-        // Delete metadata
         fileRepository.delete(fileEntity);
     }
 

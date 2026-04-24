@@ -11,6 +11,10 @@ function formatBytes(bytes: number): string {
   return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`
 }
 
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
+}
+
 function fileIcon(type: string): string {
   if (type.startsWith('image/')) return '🖼️'
   if (type.startsWith('video/')) return '🎬'
@@ -124,7 +128,7 @@ export default function DashboardPage() {
                   <p className="file-name" title={file.originalFileName}>
                     {file.originalFileName}
                   </p>
-                  <p className="file-meta">{formatBytes(file.size)}</p>
+                  <p className="file-meta">{formatBytes(file.size)} · {formatDate(file.createdAt)}</p>
                 </div>
                 <div className="file-actions">
                   <a href={file.url} target="_blank" rel="noreferrer" className="btn-icon" title="Download">

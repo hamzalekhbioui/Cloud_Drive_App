@@ -3,9 +3,11 @@ package com.cloud.drive.service;
 import com.cloud.drive.dto.AuthResponse;
 import com.cloud.drive.dto.LoginRequest;
 import com.cloud.drive.dto.RegisterRequest;
+import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.User;
 import com.cloud.drive.repository.UserRepository;
 import com.cloud.drive.security.JwtUtil;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,7 +33,7 @@ public class AuthService {
 
     public AuthResponse register(RegisterRequest request) {
         if (userRepository.existsByEmail(request.getEmail())) {
-            throw new RuntimeException("Email already in use");
+            throw new ApiException("Email already in use", HttpStatus.CONFLICT);
         }
         User user = new User();
         user.setEmail(request.getEmail());
