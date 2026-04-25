@@ -47,7 +47,7 @@ const SECTIONS = [
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
-  const { user, login } = useAuth()
+  const { login } = useAuth()
   const { theme, setTheme, density, setDensity } = useTheme()
 
   const [data,    setData]    = useState<SettingsData | null>(null)
@@ -147,9 +147,9 @@ export default function SettingsPage() {
               exit={{ opacity: 0, x: -8 }}
               transition={{ duration: 0.18 }}
             >
-              {section === 'profile'       && <ProfileSection      data={data} user={user} onSaved={(name) => { setData({ ...data, name }); login(localStorage.getItem('token')!, data.email, name); showToast('Profile updated') }} onError={(m) => showToast(m, 'error')} />}
+              {section === 'profile'       && <ProfileSection      data={data} onSaved={(name) => { setData({ ...data, name }); login(localStorage.getItem('token')!, data.email, name); showToast('Profile updated') }} onError={(m) => showToast(m, 'error')} />}
               {section === 'security'      && <SecuritySection     data={data} onSaved={() => showToast('Password updated')} onError={(m) => showToast(m, 'error')} />}
-              {section === 'appearance'    && <AppearanceSection   data={data} theme={theme} density={density} onTheme={(t) => { setTheme(t); savePref({ darkMode: t === 'dark' }) }} onDensity={(d) => { setDensity(d); savePref({ density: d }) }} />}
+              {section === 'appearance'    && <AppearanceSection   theme={theme} density={density} onTheme={(t) => { setTheme(t); savePref({ darkMode: t === 'dark' }) }} onDensity={(d) => { setDensity(d); savePref({ density: d }) }} />}
               {section === 'storage'       && <StorageSection      data={data} onToggle={(k, v) => savePref({ [k]: v })} />}
               {section === 'notifications' && <NotificationsSection data={data} onToggle={(k, v) => savePref({ [k]: v })} />}
               {section === 'preferences'   && <PreferencesSection  data={data} onChange={(k, v) => savePref({ [k]: v })} />}
@@ -192,9 +192,8 @@ function SettingsRow({ label, description, children }: { label: string; descript
 }
 
 // ── Profile ──────────────────────────────────────────────────────────────────
-function ProfileSection({ data, user, onSaved, onError }: {
+function ProfileSection({ data, onSaved, onError }: {
   data: SettingsData
-  user: { name: string; email: string } | null
   onSaved: (name: string) => void
   onError: (msg: string) => void
 }) {
@@ -358,8 +357,7 @@ function PasswordStrength({ password }: { password: string }) {
 }
 
 // ── Appearance ───────────────────────────────────────────────────────────────
-function AppearanceSection({ data, theme, density, onTheme, onDensity }: {
-  data: SettingsData
+function AppearanceSection({ theme, density, onTheme, onDensity }: {
   theme: string
   density: string
   onTheme: (t: 'light' | 'dark') => void

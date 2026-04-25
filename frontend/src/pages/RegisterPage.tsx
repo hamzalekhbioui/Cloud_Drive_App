@@ -4,7 +4,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useGoogleLogin } from '@react-oauth/google'
 import { register as registerApi, googleAuth } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
-import Icon from '../components/Icon'
 
 function GoogleIcon() {
   return (

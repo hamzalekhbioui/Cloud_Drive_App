@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
-import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, Sector } from 'recharts'
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 import type { BreakdownItem } from '../../api/analytics'
 import { formatBytes } from '../../utils/files'
 
@@ -16,16 +16,6 @@ function CustomTooltip({ active, payload }: { active?: boolean; payload?: { payl
   )
 }
 
-function ActiveShape(props: Record<string, unknown>) {
-  const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props as {
-    cx: number; cy: number; innerRadius: number; outerRadius: number
-    startAngle: number; endAngle: number; fill: string
-  }
-  return (
-    <Sector cx={cx} cy={cy} innerRadius={innerRadius - 4} outerRadius={(outerRadius as number) + 6}
-      startAngle={startAngle} endAngle={endAngle} fill={fill} />
-  )
-}
 
 export default function BreakdownChart({ data }: { data: BreakdownItem[] }) {
   const [active, setActive] = useState<number | undefined>()
@@ -50,7 +40,6 @@ export default function BreakdownChart({ data }: { data: BreakdownItem[] }) {
           <PieChart>
             <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={90}
               dataKey="size" paddingAngle={2}
-              activeIndex={active} activeShape={ActiveShape}
               onMouseEnter={(_, i) => setActive(i)}
               onMouseLeave={() => setActive(undefined)}
             >
