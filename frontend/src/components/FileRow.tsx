@@ -8,9 +8,10 @@ interface Props {
   onSelect?: (id: number, multi: boolean) => void
   onOpen: (file: FileItem) => void
   onContext?: (e: React.MouseEvent, file: FileItem) => void
+  onStar?: (id: number) => void
 }
 
-export default function FileRow({ file, selected = false, onSelect, onOpen, onContext }: Props) {
+export default function FileRow({ file, selected = false, onSelect, onOpen, onContext, onStar }: Props) {
   const kind = fileKind(file.type)
   const ext = fileExt(file)
 
@@ -40,7 +41,19 @@ export default function FileRow({ file, selected = false, onSelect, onOpen, onCo
       </div>
       <div className="fcell-meta">{formatBytes(file.size)}</div>
       <div className="fcell-meta">{formatDate(file.createdAt)}</div>
-      <div className="fcell-meta">You</div>
+      <div className="fcell-meta">
+        {onStar ? (
+          <button
+            type="button"
+            className="icon-btn"
+            style={{ width: 28, height: 28, color: file.starred ? 'var(--accent)' : 'var(--ink-4)' }}
+            onClick={(e) => { e.stopPropagation(); onStar(file.id) }}
+            aria-label={file.starred ? 'Unstar' : 'Star'}
+          >
+            <Icon name="star" size={14} />
+          </button>
+        ) : 'You'}
+      </div>
       <button
         type="button"
         className="icon-btn"

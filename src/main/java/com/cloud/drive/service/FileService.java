@@ -32,10 +32,8 @@ public class FileService {
         String originalFileName = file.getOriginalFilename();
         String blobFileName = UUID.randomUUID().toString() + "-" + originalFileName;
 
-        // Upload to Azure
         String sasUrl = blobStorageService.uploadFile(file, blobFileName);
 
-        // Save metadata
         FileEntity fileEntity = new FileEntity();
         fileEntity.setOriginalFileName(originalFileName);
         fileEntity.setBlobFileName(blobFileName);
@@ -45,25 +43,23 @@ public class FileService {
         fileEntity.setUserId(userId);
         fileEntity.setCreatedAt(LocalDateTime.now());
 
-        FileEntity savedEntity = fileRepository.save(fileEntity);
-        return mapToDto(savedEntity);
+        return mapToDto(fileRepository.save(fileEntity));
     }
 
     public List<FileResponseDto> getFilesByUser(String userId) {
-        return fileRepository.findByUserId(userId).stream().map(entity -> {
-            // Refresh SAS URL if needed, but for now we generate it fresh
-            String freshSasUrl = blobStorageService.generateSasUrlForBlob(entity.getBlobFileName());
-            entity.setUrl(freshSasUrl);
-            return mapToDto(entity);
-        }).collect(Collectors.toList());
+        return refreshAndMap(fileRepository.findByUserIdAndDeletedAtIsNull(userId));
+    }
+
+    public List<FileResponseDto> getStarredFiles(String userId) {
+        return refreshAndMap(fileRepository.findByUserIdAndStarredTrueAndDeletedAtIsNull(userId));
+    }
+
+    public List<FileResponseDto> getTrashFiles(String userId) {
+        return refreshAndMap(fileRepository.findByUserIdAndDeletedAtIsNotNull(userId));
     }
 
     public void streamFile(Long fileId, String userId, HttpServletResponse response) throws IOException {
-        FileEntity file = fileRepository.findById(fileId)
-                .orElseThrow(() -> new ApiException("File not found", HttpStatus.NOT_FOUND));
-        if (!file.getUserId().equals(userId)) {
-            throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
-        }
+        FileEntity file = findOwned(fileId, userId);
         String contentType = (file.getType() != null) ? file.getType() : "application/octet-stream";
         response.setContentType(contentType);
         response.setHeader("Content-Disposition", "inline; filename=\"" + file.getOriginalFileName() + "\"");
@@ -72,15 +68,46 @@ public class FileService {
 
     @Transactional
     public void deleteFile(Long fileId, String userId) {
-        FileEntity fileEntity = fileRepository.findById(fileId)
-                .orElseThrow(() -> new ApiException("File not found", HttpStatus.NOT_FOUND));
+        FileEntity file = findOwned(fileId, userId);
+        file.setDeletedAt(LocalDateTime.now());
+        fileRepository.save(file);
+    }
 
-        if (!fileEntity.getUserId().equals(userId)) {
+    @Transactional
+    public void restoreFile(Long fileId, String userId) {
+        FileEntity file = findOwned(fileId, userId);
+        file.setDeletedAt(null);
+        fileRepository.save(file);
+    }
+
+    @Transactional
+    public void permanentlyDeleteFile(Long fileId, String userId) {
+        FileEntity file = findOwned(fileId, userId);
+        blobStorageService.deleteFile(file.getBlobFileName());
+        fileRepository.delete(file);
+    }
+
+    @Transactional
+    public FileResponseDto toggleStar(Long fileId, String userId) {
+        FileEntity file = findOwned(fileId, userId);
+        file.setStarred(!file.isStarred());
+        return mapToDto(fileRepository.save(file));
+    }
+
+    private FileEntity findOwned(Long fileId, String userId) {
+        FileEntity file = fileRepository.findById(fileId)
+                .orElseThrow(() -> new ApiException("File not found", HttpStatus.NOT_FOUND));
+        if (!file.getUserId().equals(userId)) {
             throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
         }
+        return file;
+    }
 
-        blobStorageService.deleteFile(fileEntity.getBlobFileName());
-        fileRepository.delete(fileEntity);
+    private List<FileResponseDto> refreshAndMap(List<FileEntity> entities) {
+        return entities.stream().map(entity -> {
+            entity.setUrl(blobStorageService.generateSasUrlForBlob(entity.getBlobFileName()));
+            return mapToDto(entity);
+        }).collect(Collectors.toList());
     }
 
     private FileResponseDto mapToDto(FileEntity entity) {
@@ -91,6 +118,8 @@ public class FileService {
         dto.setSize(entity.getSize());
         dto.setType(entity.getType());
         dto.setCreatedAt(entity.getCreatedAt());
+        dto.setStarred(entity.isStarred());
+        dto.setDeletedAt(entity.getDeletedAt());
         return dto;
     }
 }

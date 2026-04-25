@@ -18,6 +18,8 @@ public class FileEntity {
     private String type;
     private String userId;
     private LocalDateTime createdAt;
+    private boolean starred = false;
+    private LocalDateTime deletedAt;
 
     public FileEntity() {}
 
@@ -44,4 +46,10 @@ public class FileEntity {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public boolean isStarred() { return starred; }
+    public void setStarred(boolean starred) { this.starred = starred; }
+
+    public LocalDateTime getDeletedAt() { return deletedAt; }
+    public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
 }

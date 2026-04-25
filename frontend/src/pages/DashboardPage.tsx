@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { getMyFiles, uploadFile } from '../api/files'
+import { getMyFiles, starFile, uploadFile } from '../api/files'
 import type { FileItem } from '../api/files'
 import { useAuth } from '../context/AuthContext'
 import Icon from '../components/Icon'
@@ -44,6 +44,13 @@ export default function DashboardPage() {
     } finally {
       setUploading(false)
     }
+  }
+
+  async function handleStar(id: number) {
+    try {
+      const { data } = await starFile(id)
+      setFiles((prev) => prev.map((f) => f.id === id ? data : f))
+    } catch { setError('Failed to update star.') }
   }
 
   useEffect(() => {
@@ -153,7 +160,7 @@ export default function DashboardPage() {
       ) : (
         <div className="file-grid">
           {recents.map((f) => (
-            <FileTile key={f.id} file={f} onOpen={setPreviewFile} />
+            <FileTile key={f.id} file={f} onOpen={setPreviewFile} onStar={handleStar} />
           ))}
         </div>
       )}

@@ -8,9 +8,10 @@ interface Props {
   onSelect?: (id: number, multi: boolean) => void
   onOpen: (file: FileItem) => void
   onContext?: (e: React.MouseEvent, file: FileItem) => void
+  onStar?: (id: number) => void
 }
 
-export default function FileTile({ file, selected = false, onSelect, onOpen, onContext }: Props) {
+export default function FileTile({ file, selected = false, onSelect, onOpen, onContext, onStar }: Props) {
   const kind = fileKind(file.type)
   const ext = fileExt(file)
   const color = TYPE_COLORS[kind]
@@ -39,6 +40,16 @@ export default function FileTile({ file, selected = false, onSelect, onOpen, onC
             aria-label={selected ? 'Deselect' : 'Select'}
           >
             {selected && <Icon name="check" size={12} strokeWidth={2.5} />}
+          </button>
+        )}
+        {onStar && (
+          <button
+            type="button"
+            className={`thumb-star ${file.starred ? 'starred' : ''}`}
+            onClick={(e) => { e.stopPropagation(); onStar(file.id) }}
+            aria-label={file.starred ? 'Unstar' : 'Star'}
+          >
+            <Icon name="star" size={12} />
           </button>
         )}
       </div>

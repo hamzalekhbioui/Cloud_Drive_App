@@ -7,6 +7,8 @@ import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
 import DashboardPage from './pages/DashboardPage'
 import FilesPage from './pages/FilesPage'
+import StarredPage from './pages/StarredPage'
+import TrashPage from './pages/TrashPage'
 
 export default function App() {
   return (
@@ -26,7 +28,8 @@ export default function App() {
               <Route path="/" element={<DashboardPage />} />
               <Route path="/files" element={<FilesPage />} />
               <Route path="/shared" element={<FilesPage />} />
-              <Route path="/starred" element={<FilesPage />} />
+              <Route path="/starred" element={<StarredPage />} />
+              <Route path="/trash" element={<TrashPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
+import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
@@ -22,12 +22,24 @@ export default function AppShell() {
   const { theme, toggleTheme } = useTheme()
   const navigate = useNavigate()
   const location = useLocation()
+  const [searchParams] = useSearchParams()
   const [collapsed, setCollapsed] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
+  const [searchValue, setSearchValue] = useState(() => searchParams.get('q') ?? '')
 
   const handleLogout = () => {
     logout()
     navigate('/login')
+  }
+
+  const handleSearch = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const q = e.target.value
+    setSearchValue(q)
+    if (q.trim()) {
+      navigate(`/files?q=${encodeURIComponent(q.trim())}`)
+    } else if (location.pathname === '/files') {
+      navigate('/files')
+    }
   }
 
   const breadcrumbs = (() => {
@@ -111,7 +123,11 @@ export default function AppShell() {
           </nav>
           <div className="search">
             <span className="search-icon"><Icon name="search" size={15} /></span>
-            <input placeholder="Search files…" />
+            <input
+              placeholder="Search files…"
+              value={searchValue}
+              onChange={handleSearch}
+            />
             <span className="kbd">⌘K</span>
           </div>
           <div className="topbar-actions">

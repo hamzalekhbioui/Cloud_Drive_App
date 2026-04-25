@@ -27,14 +27,25 @@ public class FileController {
     public ResponseEntity<FileResponseDto> uploadFile(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserDetails userDetails) throws Exception {
-        FileResponseDto response = fileService.uploadFile(file, userDetails.getUsername());
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
+        return new ResponseEntity<>(fileService.uploadFile(file, userDetails.getUsername()), HttpStatus.CREATED);
     }
 
     @GetMapping("/me")
     public ResponseEntity<List<FileResponseDto>> getMyFiles(
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(fileService.getFilesByUser(userDetails.getUsername()));
+    }
+
+    @GetMapping("/starred")
+    public ResponseEntity<List<FileResponseDto>> getStarredFiles(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(fileService.getStarredFiles(userDetails.getUsername()));
+    }
+
+    @GetMapping("/trash")
+    public ResponseEntity<List<FileResponseDto>> getTrashFiles(
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(fileService.getTrashFiles(userDetails.getUsername()));
     }
 
     @GetMapping("/{fileId}/stream")
@@ -51,5 +62,28 @@ public class FileController {
             @AuthenticationPrincipal UserDetails userDetails) {
         fileService.deleteFile(fileId, userDetails.getUsername());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{fileId}/restore")
+    public ResponseEntity<Void> restoreFile(
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        fileService.restoreFile(fileId, userDetails.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{fileId}/permanent")
+    public ResponseEntity<Void> permanentlyDeleteFile(
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        fileService.permanentlyDeleteFile(fileId, userDetails.getUsername());
+        return ResponseEntity.noContent().build();
+    }
+
+    @PatchMapping("/{fileId}/star")
+    public ResponseEntity<FileResponseDto> toggleStar(
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(fileService.toggleStar(fileId, userDetails.getUsername()));
     }
 }

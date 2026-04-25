@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { deleteFile, getMyFiles, uploadFile } from '../api/files'
+import { useSearchParams } from 'react-router-dom'
+import { deleteFile, getMyFiles, starFile, uploadFile } from '../api/files'
 import type { FileItem } from '../api/files'
 import Icon from '../components/Icon'
 import FileTile from '../components/FileTile'
@@ -19,6 +20,8 @@ export default function FilesPage() {
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
+  const [searchParams] = useSearchParams()
+  const q = searchParams.get('q')?.toLowerCase() ?? ''
 
   useEffect(() => { fetchFiles() }, [])
   useEffect(() => { localStorage.setItem('view', view) }, [view])
@@ -41,7 +44,7 @@ export default function FilesPage() {
   }
 
   async function handleDelete(ids: number[]) {
-    if (!confirm(`Delete ${ids.length} file${ids.length > 1 ? 's' : ''}?`)) return
+    if (!confirm(`Move ${ids.length} file${ids.length > 1 ? 's' : ''} to trash?`)) return
     try {
       await Promise.all(ids.map((id) => deleteFile(id)))
       setFiles((prev) => prev.filter((f) => !ids.includes(f.id)))
@@ -49,17 +52,25 @@ export default function FilesPage() {
     } catch { setError('Failed to delete.') }
   }
 
+  async function handleStar(id: number) {
+    try {
+      const { data } = await starFile(id)
+      setFiles((prev) => prev.map((f) => f.id === id ? data : f))
+    } catch { setError('Failed to update star.') }
+  }
+
   const toggleSelect = (id: number, _multi: boolean) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
 
-  const filtered = filter === 'all' ? files : files.filter((f) => fileKind(f.type) === filter)
+  const byType = filter === 'all' ? files : files.filter((f) => fileKind(f.type) === filter)
+  const filtered = q ? byType.filter((f) => f.originalFileName.toLowerCase().includes(q)) : byType
 
   return (
     <div className="page-inner">
       <div className="page-header">
         <div>
           <div className="eyebrow">Workspace</div>
-          <h1 className="title">All files</h1>
+          <h1 className="title">{q ? `Results for "${q}"` : 'All files'}</h1>
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
           <div className="view-toggle">
@@ -73,19 +84,21 @@ export default function FilesPage() {
         </div>
       </div>
 
-      <div className="browser-toolbar">
-        <div className="filters">
-          {TYPE_FILTERS.map((t) => (
-            <button
-              key={t}
-              className={`chip ${filter === t ? 'active' : ''}`}
-              onClick={() => setFilter(t)}
-            >
-              {t === 'all' ? 'All types' : typeLabel(t as ReturnType<typeof fileKind>) + 's'}
-            </button>
-          ))}
+      {!q && (
+        <div className="browser-toolbar">
+          <div className="filters">
+            {TYPE_FILTERS.map((t) => (
+              <button
+                key={t}
+                className={`chip ${filter === t ? 'active' : ''}`}
+                onClick={() => setFilter(t)}
+              >
+                {t === 'all' ? 'All types' : typeLabel(t as ReturnType<typeof fileKind>) + 's'}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {error && <div style={{ padding: 12, background: 'color-mix(in oklab, var(--danger) 10%, var(--surface))', color: 'var(--danger)', borderRadius: 10, marginBottom: 16, fontSize: 13 }}>{error}</div>}
 
@@ -102,8 +115,10 @@ export default function FilesPage() {
         <div style={{ textAlign: 'center', padding: 40, color: 'var(--ink-3)' }}>Loading…</div>
       ) : filtered.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 80, color: 'var(--ink-3)' }}>
-          <div style={{ fontFamily: 'var(--serif)', fontSize: 32, marginBottom: 8 }}>Nothing here yet.</div>
-          <div>Upload your first file to get started.</div>
+          <div style={{ fontFamily: 'var(--serif)', fontSize: 32, marginBottom: 8 }}>
+            {q ? 'No files match your search.' : 'Nothing here yet.'}
+          </div>
+          <div>{q ? 'Try a different search term.' : 'Upload your first file to get started.'}</div>
         </div>
       ) : view === 'grid' ? (
         <div className="file-grid">
@@ -114,13 +129,14 @@ export default function FilesPage() {
               selected={selected.includes(f.id)}
               onSelect={toggleSelect}
               onOpen={setPreviewFile}
+              onStar={handleStar}
             />
           ))}
         </div>
       ) : (
         <div className="file-list">
           <div className="file-list-head">
-            <div /><div>Name</div><div>Size</div><div>Modified</div><div>Owner</div><div />
+            <div /><div>Name</div><div>Size</div><div>Modified</div><div>Starred</div><div />
           </div>
           {filtered.map((f) => (
             <FileRow
@@ -129,6 +145,7 @@ export default function FilesPage() {
               selected={selected.includes(f.id)}
               onSelect={toggleSelect}
               onOpen={setPreviewFile}
+              onStar={handleStar}
             />
           ))}
         </div>

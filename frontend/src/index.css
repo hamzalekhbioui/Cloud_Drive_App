@@ -420,6 +420,15 @@ a { color: inherit; text-decoration: none; }
 }
 .file-card:hover .thumb-check, .file-card.selected .thumb-check { opacity: 1; }
 .file-card.selected .thumb-check { background: var(--ink); border-color: var(--ink); color: var(--bg); }
+.file-card .thumb-star {
+  position: absolute; top: 10px; right: 10px;
+  width: 22px; height: 22px; border-radius: 6px;
+  border: 1.5px solid var(--line-2); background: var(--surface);
+  display: grid; place-items: center; opacity: 0; transition: opacity 150ms ease, background 150ms ease, color 150ms ease;
+  color: var(--ink-3);
+}
+.file-card:hover .thumb-star { opacity: 1; }
+.file-card .thumb-star.starred { opacity: 1; background: var(--ink); border-color: var(--ink); color: var(--accent); }
 .file-card .badge-lock {
   position: absolute; top: 10px; right: 10px;
   width: 22px; height: 22px; border-radius: 6px;
