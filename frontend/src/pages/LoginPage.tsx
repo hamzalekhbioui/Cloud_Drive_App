@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { login as loginApi } from '../api/auth'
 import { useAuth } from '../context/AuthContext'
+import Icon from '../components/Icon'
 
 export default function LoginPage() {
   const navigate = useNavigate()
@@ -14,8 +15,7 @@ export default function LoginPage() {
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
-    setError('')
-    setLoading(true)
+    setError(''); setLoading(true)
     try {
       const { data } = await loginApi(email, password)
       login(data.token, data.email, data.name)
@@ -28,48 +28,49 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="auth-page">
-      <div className="auth-card">
-        <div className="auth-logo">
-          <svg width="36" height="36" viewBox="0 0 24 24" fill="none">
-            <path d="M3 15C3 17.8 5.2 20 8 20H18C20.2 20 22 18.2 22 16C22 14.1 20.7 12.5 18.9 12.1C18.6 9.2 16.1 7 13 7C10.6 7 8.5 8.3 7.4 10.3C4.9 10.7 3 12.7 3 15Z" fill="#2563EB"/>
-          </svg>
-          <span>CloudDrive</span>
+    <div className="auth-shell">
+      <div className="auth-brand">
+        <div className="brand"><span className="logo">V</span><span>Vault</span></div>
+        <div className="pitch">
+          <div className="display">Your team's files,<br /><em>under lock.</em></div>
+          <p>Vault is end-to-end encrypted cloud storage built for teams who treat documents like assets — not attachments.</p>
         </div>
-        <h1>Welcome back</h1>
-        <p className="auth-sub">Sign in to your account</p>
+        <div className="foot">SOC 2 Type II · ISO 27001 · GDPR</div>
+        <div className="orb" />
+      </div>
+      <div className="auth-form-wrap">
+        <form className="auth-form" onSubmit={handleSubmit}>
+          <h1>Welcome back.</h1>
+          <div className="sub">Sign in to your workspace to continue.</div>
 
-        {error && <div className="alert alert-error">{error}</div>}
+          {error && (
+            <div style={{ padding: 10, marginBottom: 14, background: 'color-mix(in oklab, var(--danger) 10%, var(--surface))', color: 'var(--danger)', borderRadius: 8, fontSize: 13 }}>
+              {error}
+            </div>
+          )}
 
-        <form onSubmit={handleSubmit}>
           <div className="field">
-            <label>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-            />
+            <label>Work email</label>
+            <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@company.com" required />
           </div>
           <div className="field">
             <label>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="••••••••"
-              required
-            />
+            <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required />
           </div>
-          <button className="btn-primary" type="submit" disabled={loading}>
+          <div style={{ textAlign: 'right', marginBottom: 12 }}>
+            <a style={{ fontSize: 12, color: 'var(--ink-3)', textDecoration: 'underline', textUnderlineOffset: 3 }}>Forgot password?</a>
+          </div>
+          <button type="submit" className="btn btn-primary" disabled={loading}>
             {loading ? 'Signing in…' : 'Sign in'}
           </button>
+          <div className="or">or</div>
+          <button type="button" className="btn btn-secondary" style={{ width: '100%', justifyContent: 'center', padding: '12px 16px' }}>
+            <Icon name="shield" size={14} /> Continue with SSO
+          </button>
+          <div className="alt">
+            Don't have an account? <Link to="/register">Create one</Link>
+          </div>
         </form>
-
-        <p className="auth-footer">
-          Don't have an account? <Link to="/register">Sign up</Link>
-        </p>
       </div>
     </div>
   )

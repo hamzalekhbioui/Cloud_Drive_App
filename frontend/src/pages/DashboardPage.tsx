@@ -1,45 +1,27 @@
-import { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { getMyFiles, uploadFile, deleteFile } from '../api/files'
+import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { getMyFiles, uploadFile } from '../api/files'
 import type { FileItem } from '../api/files'
 import { useAuth } from '../context/AuthContext'
+import Icon from '../components/Icon'
+import FileTile from '../components/FileTile'
 import FilePreviewModal from '../components/FilePreviewModal'
-
-function formatBytes(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / 1024 / 1024).toFixed(1)} MB`
-  return `${(bytes / 1024 / 1024 / 1024).toFixed(1)} GB`
-}
-
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' })
-}
-
-function fileIcon(type: string): string {
-  if (type.startsWith('image/')) return '🖼️'
-  if (type.startsWith('video/')) return '🎬'
-  if (type.startsWith('audio/')) return '🎵'
-  if (type.includes('pdf')) return '📄'
-  if (type.includes('zip') || type.includes('compressed')) return '🗜️'
-  if (type.includes('word') || type.includes('document')) return '📝'
-  if (type.includes('sheet') || type.includes('excel')) return '📊'
-  return '📁'
-}
+import {
+  formatBytes, fileKind, typeLabel, TYPE_COLORS, TOTAL_STORAGE_BYTES,
+} from '../utils/files'
 
 export default function DashboardPage() {
-  const { user, logout } = useAuth()
-  const navigate = useNavigate()
+  const { user } = useAuth()
   const [files, setFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const dragCounter = useRef(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => {
-    fetchFiles()
-  }, [])
+  useEffect(() => { fetchFiles() }, [])
 
   async function fetchFiles() {
     try {
@@ -52,105 +34,138 @@ export default function DashboardPage() {
     }
   }
 
-  async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setUploading(true)
-    setError('')
+  async function doUpload(file: File) {
+    setUploading(true); setError('')
     try {
       const { data } = await uploadFile(file)
       setFiles((prev) => [data, ...prev])
     } catch {
-      setError('Upload failed. Please try again.')
+      setError('Upload failed.')
     } finally {
       setUploading(false)
-      if (inputRef.current) inputRef.current.value = ''
     }
   }
 
-  async function handleDelete(fileId: number) {
-    if (!confirm('Delete this file?')) return
-    try {
-      await deleteFile(fileId)
-      setFiles((prev) => prev.filter((f) => f.id !== fileId))
-    } catch {
-      setError('Failed to delete file.')
+  useEffect(() => {
+    const onEnter = (e: DragEvent) => { e.preventDefault(); dragCounter.current++; if (e.dataTransfer?.types?.includes('Files')) setDragging(true) }
+    const onLeave = (e: DragEvent) => { e.preventDefault(); dragCounter.current--; if (dragCounter.current <= 0) setDragging(false) }
+    const onOver = (e: DragEvent) => e.preventDefault()
+    const onDrop = (e: DragEvent) => {
+      e.preventDefault(); dragCounter.current = 0; setDragging(false)
+      const dropped = Array.from(e.dataTransfer?.files || [])
+      dropped.forEach(doUpload)
     }
-  }
+    window.addEventListener('dragenter', onEnter)
+    window.addEventListener('dragleave', onLeave)
+    window.addEventListener('dragover', onOver)
+    window.addEventListener('drop', onDrop)
+    return () => {
+      window.removeEventListener('dragenter', onEnter)
+      window.removeEventListener('dragleave', onLeave)
+      window.removeEventListener('dragover', onOver)
+      window.removeEventListener('drop', onDrop)
+    }
+  }, [])
 
-  function handleLogout() {
-    logout()
-    navigate('/login')
-  }
+  const used = files.reduce((s, f) => s + f.size, 0)
+  const pct = (used / TOTAL_STORAGE_BYTES) * 100
+  const recents = [...files].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6)
+
+  const byKind: Record<string, number> = {}
+  files.forEach((f) => { const k = fileKind(f.type); byKind[k] = (byKind[k] || 0) + f.size })
+  const breakdown = Object.entries(byKind).map(([k, v]) => ({ kind: k as ReturnType<typeof fileKind>, size: v })).sort((a, b) => b.size - a.size).slice(0, 6)
+  const breakdownTotal = breakdown.reduce((s, b) => s + b.size, 0) || 1
+
+  const greeting = (() => {
+    const h = new Date().getHours()
+    if (h < 12) return 'Good morning'
+    if (h < 18) return 'Good afternoon'
+    return 'Good evening'
+  })()
 
   return (
-    <div className="dashboard">
-      <header className="navbar">
-        <div className="navbar-brand">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-            <path d="M3 15C3 17.8 5.2 20 8 20H18C20.2 20 22 18.2 22 16C22 14.1 20.7 12.5 18.9 12.1C18.6 9.2 16.1 7 13 7C10.6 7 8.5 8.3 7.4 10.3C4.9 10.7 3 12.7 3 15Z" fill="#2563EB"/>
-          </svg>
-          <span>CloudDrive</span>
+    <div className="page-inner">
+      <div className="page-header">
+        <div>
+          <div className="eyebrow">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
+          <h1 className="display">{greeting}, <em style={{ fontStyle: 'italic', color: 'var(--ink-3)' }}>{user?.name.split(' ')[0]}</em>.</h1>
         </div>
-        <div className="navbar-user">
-          <span className="avatar">{user?.name.charAt(0).toUpperCase()}</span>
-          <span className="user-name">{user?.name}</span>
-          <button className="btn-logout" onClick={handleLogout}>Sign out</button>
-        </div>
-      </header>
+        <button className="btn btn-accent" onClick={() => inputRef.current?.click()} disabled={uploading}>
+          <Icon name="upload" size={15} /> {uploading ? 'Uploading…' : 'Upload files'}
+        </button>
+        <input
+          ref={inputRef}
+          type="file"
+          hidden
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) doUpload(f); if (inputRef.current) inputRef.current.value = '' }}
+        />
+      </div>
 
-      <main className="main">
-        <div className="main-header">
-          <h2>My Files</h2>
-          <button
-            className="btn-primary btn-upload"
-            onClick={() => inputRef.current?.click()}
-            disabled={uploading}
-          >
-            {uploading ? 'Uploading…' : '+ Upload file'}
-          </button>
-          <input ref={inputRef} type="file" hidden onChange={handleUpload} />
-        </div>
+      {error && <div style={{ padding: 12, background: 'color-mix(in oklab, var(--danger) 10%, var(--surface))', color: 'var(--danger)', borderRadius: 10, marginBottom: 20, fontSize: 13 }}>{error}</div>}
 
-        {error && <div className="alert alert-error">{error}</div>}
-
-        {loading ? (
-          <div className="empty-state">Loading…</div>
-        ) : files.length === 0 ? (
-          <div className="empty-state">
-            <div className="empty-icon">☁️</div>
-            <p>No files yet. Upload your first file!</p>
+      <div className="hero-grid">
+        <div className="storage-hero">
+          <div className="accent-ring" />
+          <div style={{ position: 'relative' }}>
+            <div className="eyebrow">Storage in use</div>
+            <div className="hero-num">
+              {(used / 1024 ** 3).toFixed(2)}<span className="unit">GB</span>
+            </div>
+            <div className="hero-of">of 1,024 GB on Business plan</div>
           </div>
-        ) : (
-          <div className="file-grid">
-            {files.map((file) => (
-              <div key={file.id} className="file-card">
-                <div className="file-icon">{fileIcon(file.type)}</div>
-                <div className="file-info">
-                  <p className="file-name" title={file.originalFileName}>
-                    {file.originalFileName}
-                  </p>
-                  <p className="file-meta">{formatBytes(file.size)} · {formatDate(file.createdAt)}</p>
-                </div>
-                <div className="file-actions">
-                  <button className="btn-icon" onClick={() => setPreviewFile(file)} title="Open">
-                    👁
-                  </button>
-                  <a href={file.url} target="_blank" rel="noreferrer" className="btn-icon" title="Download">
-                    ⬇
-                  </a>
-                  <button className="btn-icon btn-danger" onClick={() => handleDelete(file.id)} title="Delete">
-                    🗑
-                  </button>
-                </div>
+          <div style={{ position: 'relative' }}>
+            <div className="hero-bar"><div className="fill" style={{ width: `${pct}%` }} /></div>
+            <div className="hero-foot">
+              <div className="label">{pct.toFixed(2)}% utilized · {files.length} files total</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="breakdown-card">
+          <h3>Breakdown<span className="eyebrow">by type</span></h3>
+          <div className="breakdown-list">
+            {breakdown.length === 0 ? (
+              <div style={{ color: 'var(--ink-3)', fontSize: 13 }}>Upload files to see a breakdown.</div>
+            ) : breakdown.map((b) => (
+              <div className="breakdown-row" key={b.kind}>
+                <div className="swatch" style={{ background: TYPE_COLORS[b.kind] }} />
+                <div className="name">{typeLabel(b.kind)}s</div>
+                <div className="bar-wrap"><div className="bar" style={{ width: `${(b.size / breakdownTotal) * 100}%`, background: TYPE_COLORS[b.kind] }} /></div>
+                <div className="size">{formatBytes(b.size)}</div>
               </div>
             ))}
           </div>
-        )}
-      </main>
-      {previewFile && (
-        <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />
+        </div>
+      </div>
+
+      <div className="section-head">
+        <h2 className="h2">Recently added</h2>
+        <Link to="/files" style={{ fontSize: 12, color: 'var(--ink-3)', fontWeight: 500 }}>View all →</Link>
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: 40, color: 'var(--ink-3)' }}>Loading…</div>
+      ) : recents.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: 80, color: 'var(--ink-3)' }}>
+          <div style={{ fontFamily: 'var(--serif)', fontSize: 32, marginBottom: 8 }}>Your vault is empty.</div>
+          <div>Drag files anywhere on this page to upload — they'll encrypt automatically.</div>
+        </div>
+      ) : (
+        <div className="file-grid">
+          {recents.map((f) => (
+            <FileTile key={f.id} file={f} onOpen={setPreviewFile} />
+          ))}
+        </div>
       )}
+
+      {previewFile && <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
+
+      <div className={`dragdrop-overlay ${dragging ? 'active' : ''}`}>
+        <div className="dragdrop-card">
+          <div className="t">Drop to upload</div>
+          <div className="s">Files encrypt automatically on upload</div>
+        </div>
+      </div>
     </div>
   )
 }
