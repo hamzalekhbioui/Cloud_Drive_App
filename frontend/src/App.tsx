@@ -10,6 +10,7 @@ import FilesPage        from './pages/FilesPage'
 import StarredPage      from './pages/StarredPage'
 import TrashPage        from './pages/TrashPage'
 import AnalyticsPage    from './pages/AnalyticsPage'
+import SettingsPage     from './pages/SettingsPage'
 
 export default function App() {
   return (
@@ -32,6 +33,7 @@ export default function App() {
               <Route path="/starred" element={<StarredPage />} />
               <Route path="/trash"      element={<TrashPage />} />
               <Route path="/analytics" element={<AnalyticsPage />} />
+              <Route path="/settings"  element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

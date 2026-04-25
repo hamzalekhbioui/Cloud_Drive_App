@@ -22,6 +22,9 @@ public class User {
 
     private LocalDateTime createdAt;
 
+    /** Updated on every successful password-based login. */
+    private LocalDateTime lastLogin;
+
     public User() {}
 
     public Long getId() { return id; }
@@ -38,4 +41,7 @@ public class User {
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+
+    public LocalDateTime getLastLogin() { return lastLogin; }
+    public void setLastLogin(LocalDateTime lastLogin) { this.lastLogin = lastLogin; }
 }
