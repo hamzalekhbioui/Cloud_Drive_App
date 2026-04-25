@@ -11,3 +11,6 @@ export const register = (name: string, email: string, password: string) =>
 
 export const login = (email: string, password: string) =>
   client.post<AuthResponse>('/auth/login', { email, password })
+
+export const googleAuth = (accessToken: string) =>
+  client.post<AuthResponse>('/auth/google', { accessToken })
