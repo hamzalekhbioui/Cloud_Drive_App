@@ -5,8 +5,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -33,9 +35,19 @@ public class GlobalExceptionHandler {
         return ResponseEntity.badRequest().body(Map.of("message", message));
     }
 
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<Map<String, String>> handleMissingPart(MissingServletRequestPartException e) {
+        return ResponseEntity.badRequest().body(Map.of("message", "No file was received. Please select a file before uploading."));
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<Map<String, String>> handleMissingParam(MissingServletRequestParameterException e) {
+        return ResponseEntity.badRequest().body(Map.of("message", "Missing required parameter: " + e.getParameterName()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, String>> handleGeneric(Exception e) {
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("message", "An unexpected error occurred"));
+                .body(Map.of("message", e.getMessage() != null ? e.getMessage() : "An unexpected error occurred"));
     }
 }

@@ -5,10 +5,11 @@ import PrivateRoute from './components/PrivateRoute'
 import AppShell from './components/AppShell'
 import LoginPage from './pages/LoginPage'
 import RegisterPage from './pages/RegisterPage'
-import DashboardPage from './pages/DashboardPage'
-import FilesPage from './pages/FilesPage'
-import StarredPage from './pages/StarredPage'
-import TrashPage from './pages/TrashPage'
+import DashboardPage   from './pages/DashboardPage'
+import FilesPage        from './pages/FilesPage'
+import StarredPage      from './pages/StarredPage'
+import TrashPage        from './pages/TrashPage'
+import AnalyticsPage    from './pages/AnalyticsPage'
 
 export default function App() {
   return (
@@ -29,7 +30,8 @@ export default function App() {
               <Route path="/files" element={<FilesPage />} />
               <Route path="/shared" element={<FilesPage />} />
               <Route path="/starred" element={<StarredPage />} />
-              <Route path="/trash" element={<TrashPage />} />
+              <Route path="/trash"      element={<TrashPage />} />
+              <Route path="/analytics" element={<AnalyticsPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

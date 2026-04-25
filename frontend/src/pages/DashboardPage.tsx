@@ -39,8 +39,9 @@ export default function DashboardPage() {
     try {
       const { data } = await uploadFile(file)
       setFiles((prev) => [data, ...prev])
-    } catch {
-      setError('Upload failed.')
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg || 'Upload failed. Check that the backend is running.')
     } finally {
       setUploading(false)
     }
@@ -97,14 +98,14 @@ export default function DashboardPage() {
           <div className="eyebrow">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
           <h1 className="display">{greeting}, <em style={{ fontStyle: 'italic', color: 'var(--ink-3)' }}>{user?.name.split(' ')[0]}</em>.</h1>
         </div>
-        <button className="btn btn-accent" onClick={() => inputRef.current?.click()} disabled={uploading}>
+        <button type="button" className="btn btn-accent" onClick={() => inputRef.current?.click()} disabled={uploading}>
           <Icon name="upload" size={15} /> {uploading ? 'Uploading…' : 'Upload files'}
         </button>
         <input
           ref={inputRef}
           type="file"
-          hidden
-          onChange={(e) => { const f = e.target.files?.[0]; if (f) doUpload(f); if (inputRef.current) inputRef.current.value = '' }}
+          style={{ display: 'none' }}
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void doUpload(f); if (inputRef.current) inputRef.current.value = '' }}
         />
       </div>
 

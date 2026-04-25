@@ -39,7 +39,10 @@ export default function FilesPage() {
     try {
       const { data } = await uploadFile(file)
       setFiles((prev) => [data, ...prev])
-    } catch { setError('Upload failed.') }
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
+      setError(msg || 'Upload failed. Check that the backend is running.')
+    }
     finally { setUploading(false); if (inputRef.current) inputRef.current.value = '' }
   }
 
@@ -77,10 +80,10 @@ export default function FilesPage() {
             <button className={view === 'grid' ? 'active' : ''} onClick={() => setView('grid')} aria-label="Grid view"><Icon name="grid" size={15} /></button>
             <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')} aria-label="List view"><Icon name="list" size={15} /></button>
           </div>
-          <button className="btn btn-accent" onClick={() => inputRef.current?.click()} disabled={uploading}>
+          <button type="button" className="btn btn-accent" onClick={() => inputRef.current?.click()} disabled={uploading}>
             <Icon name="upload" size={14} /> {uploading ? 'Uploading…' : 'Upload'}
           </button>
-          <input ref={inputRef} type="file" hidden onChange={handleUpload} />
+          <input ref={inputRef} type="file" style={{ display: 'none' }} onChange={handleUpload} />
         </div>
       </div>
 

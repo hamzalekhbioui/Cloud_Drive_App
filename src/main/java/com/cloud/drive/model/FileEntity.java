@@ -18,6 +18,7 @@ public class FileEntity {
     private String type;
     private String userId;
     private LocalDateTime createdAt;
+    @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean starred = false;
     private LocalDateTime deletedAt;
 
