@@ -32,6 +32,9 @@ build/
 ### VS Code ###
 .vscode/
 
+### MCP Config (contains auth tokens) ###
+.mcp.json
+
 ### Secrets and Local Configs ###
 project.zip
 .env
