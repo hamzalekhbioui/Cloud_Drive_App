@@ -35,6 +35,9 @@ build/
 ### MCP Config (contains auth tokens) ###
 .mcp.json
 
+### H2 local database ###
+data/
+
 ### Secrets and Local Configs ###
 project.zip
 .env

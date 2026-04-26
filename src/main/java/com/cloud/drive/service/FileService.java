@@ -104,10 +104,7 @@ public class FileService {
     }
 
     private List<FileResponseDto> refreshAndMap(List<FileEntity> entities) {
-        return entities.stream().map(entity -> {
-            entity.setUrl(blobStorageService.generateSasUrlForBlob(entity.getBlobFileName()));
-            return mapToDto(entity);
-        }).collect(Collectors.toList());
+        return entities.stream().map(entity -> mapToDto(entity)).collect(Collectors.toList());
     }
 
     private FileResponseDto mapToDto(FileEntity entity) {

@@ -9,12 +9,12 @@ import com.azure.storage.blob.sas.BlobServiceSasSignatureValues;
 import com.cloud.drive.exception.ApiException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
-import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
 import java.time.OffsetDateTime;
+import java.util.Optional;
 
 @Service
 public class BlobStorageService {
@@ -22,9 +22,9 @@ public class BlobStorageService {
     private final BlobServiceClient blobServiceClient;
     private final String containerName;
 
-    public BlobStorageService(@Nullable BlobServiceClient blobServiceClient,
+    public BlobStorageService(Optional<BlobServiceClient> blobServiceClient,
                               @Value("${azure.storage.container-name}") String containerName) {
-        this.blobServiceClient = blobServiceClient;
+        this.blobServiceClient = blobServiceClient.orElse(null);
         this.containerName = containerName;
     }
 
@@ -40,6 +40,7 @@ public class BlobStorageService {
     public String uploadFile(MultipartFile file, String blobFileName) throws IOException {
         requireAzure();
         BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient(containerName);
+        containerClient.createIfNotExists();
         BlobClient blobClient = containerClient.getBlobClient(blobFileName);
 
         blobClient.upload(file.getInputStream(), file.getSize(), true);
