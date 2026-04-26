@@ -60,16 +60,10 @@ export default function SettingsPage() {
 
   useEffect(() => {
     getSettings()
-      .then(({ data: d }) => {
-        setData(d)
-        // Sync backend theme into ThemeContext on first load
-        if (d.darkMode && theme !== 'dark') setTheme('dark')
-        if (!d.darkMode && theme !== 'light') setTheme('light')
-        if (d.density) setDensity(d.density as 'compact' | 'comfortable' | 'airy')
-      })
+      .then(({ data: d }) => setData(d))
       .catch(() => showToast('Failed to load settings.', 'error'))
       .finally(() => setLoading(false))
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [])
 
   // Debounced preference saver
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
