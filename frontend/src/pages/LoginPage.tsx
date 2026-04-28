@@ -284,7 +284,6 @@ export default function LoginPage() {
               <motion.div variants={itemVariants} style={{ marginBottom: 20 }}>
                 <div className="gl-field-head">
                   <label className="gl-label" htmlFor="gl-password">Password</label>
-                  <a href="#" className="gl-forgot">Forgot?</a>
                 </div>
                 <div style={{ position: 'relative' }}>
                   <input
