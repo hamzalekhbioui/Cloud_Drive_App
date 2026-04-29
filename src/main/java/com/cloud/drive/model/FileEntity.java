@@ -11,8 +11,11 @@ public class FileEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(length = 512)
     private String originalFileName;
+    @Column(length = 512)
     private String blobFileName;
+    @Column(columnDefinition = "TEXT")
     private String url;
     private Long size;
     private String type;
