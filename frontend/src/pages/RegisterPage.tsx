@@ -239,10 +239,7 @@ export default function RegisterPage() {
             {/* Brand row */}
             <motion.div variants={itemVariants} className="gl-brand-row">
               <div className="gl-logo">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                  <path d="M4 7l8-4 8 4v10l-8 4-8-4V7z" stroke="#1a0b2e" strokeWidth="2" strokeLinejoin="round" />
-                  <path d="M12 3v18M4 7l8 4 8-4" stroke="#1a0b2e" strokeWidth="2" strokeLinejoin="round" />
-                </svg>
+                <img src="/cloud_drive_app.png" alt="Vault" width="24" height="24" style={{ objectFit: 'contain' }} />
               </div>
               <span className="gl-wordmark">Vault</span>
             </motion.div>

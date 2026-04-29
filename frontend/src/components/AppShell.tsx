@@ -61,7 +61,7 @@ export default function AppShell() {
         </button>
 
         <div className="sidebar-brand">
-          <div className="logo">V</div>
+          <img src="/cloud_drive_app.png" alt="Vault" className="logo" style={{ objectFit: 'contain' }} />
           <div className="brand-name">Vault</div>
         </div>
 
