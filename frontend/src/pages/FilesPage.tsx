@@ -6,6 +6,7 @@ import Icon from '../components/Icon'
 import FileTile from '../components/FileTile'
 import FileRow from '../components/FileRow'
 import FilePreviewModal from '../components/FilePreviewModal'
+import ShareModal from '../components/ShareModal'
 import { fileKind, typeLabel } from '../utils/files'
 
 const TYPE_FILTERS = ['all', 'pdf', 'doc', 'sheet', 'deck', 'img', 'video', 'zip'] as const
@@ -18,6 +19,7 @@ export default function FilesPage() {
   const [filter, setFilter] = useState<typeof TYPE_FILTERS[number]>('all')
   const [selected, setSelected] = useState<number[]>([])
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
+  const [shareFileId, setShareFileId] = useState<number | null>(null)
   const [error, setError] = useState('')
   const inputRef = useRef<HTMLInputElement>(null)
   const [searchParams] = useSearchParams()
@@ -134,6 +136,7 @@ export default function FilesPage() {
               onSelect={toggleSelect}
               onOpen={setPreviewFile}
               onStar={handleStar}
+              onShare={setShareFileId}
             />
           ))}
         </div>
@@ -160,6 +163,13 @@ export default function FilesPage() {
           file={previewFile}
           onClose={() => setPreviewFile(null)}
           onDelete={async () => { await handleDelete([previewFile.id]); setPreviewFile(null) }}
+        />
+      )}
+      {shareFileId !== null && (
+        <ShareModal
+          fileId={shareFileId}
+          fileName={files.find((f) => f.id === shareFileId)?.originalFileName ?? ''}
+          onClose={() => setShareFileId(null)}
         />
       )}
     </div>

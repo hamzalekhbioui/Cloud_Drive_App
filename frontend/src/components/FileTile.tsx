@@ -9,9 +9,10 @@ interface Props {
   onOpen: (file: FileItem) => void
   onContext?: (e: React.MouseEvent, file: FileItem) => void
   onStar?: (id: number) => void
+  onShare?: (id: number) => void
 }
 
-export default function FileTile({ file, selected = false, onSelect, onOpen, onContext, onStar }: Props) {
+export default function FileTile({ file, selected = false, onSelect, onOpen, onContext, onStar, onShare }: Props) {
   const kind = fileKind(file.type)
   const ext = fileExt(file)
   const color = TYPE_COLORS[kind]
@@ -50,6 +51,17 @@ export default function FileTile({ file, selected = false, onSelect, onOpen, onC
             aria-label={file.starred ? 'Unstar' : 'Star'}
           >
             <Icon name="star" size={12} />
+          </button>
+        )}
+        {onShare && (
+          <button
+            type="button"
+            className="thumb-star"
+            style={{ right: 28 }}
+            onClick={(e) => { e.stopPropagation(); onShare(file.id) }}
+            aria-label="Share"
+          >
+            <Icon name="share" size={12} />
           </button>
         )}
       </div>

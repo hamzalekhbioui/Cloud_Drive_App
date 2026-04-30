@@ -6,6 +6,7 @@ import { useAuth } from '../context/AuthContext'
 import Icon from '../components/Icon'
 import FileTile from '../components/FileTile'
 import FilePreviewModal from '../components/FilePreviewModal'
+import ShareModal from '../components/ShareModal'
 import {
   formatBytes, fileKind, typeLabel, TYPE_COLORS, TOTAL_STORAGE_BYTES,
 } from '../utils/files'
@@ -18,6 +19,7 @@ export default function DashboardPage() {
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
+  const [shareFileId, setShareFileId] = useState<number | null>(null)
   const [dragging, setDragging] = useState(false)
   const dragCounter = useRef(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -177,12 +179,19 @@ export default function DashboardPage() {
       ) : (
         <div className="file-grid">
           {recents.map((f) => (
-            <FileTile key={f.id} file={f} onOpen={setPreviewFile} onStar={handleStar} />
+            <FileTile key={f.id} file={f} onOpen={setPreviewFile} onStar={handleStar} onShare={user ? setShareFileId : undefined} />
           ))}
         </div>
       )}
 
       {previewFile && <FilePreviewModal file={previewFile} onClose={() => setPreviewFile(null)} />}
+      {shareFileId !== null && (
+        <ShareModal
+          fileId={shareFileId}
+          fileName={files.find((f) => f.id === shareFileId)?.originalFileName ?? ''}
+          onClose={() => setShareFileId(null)}
+        />
+      )}
 
       <div className={`dragdrop-overlay ${dragging ? 'active' : ''}`}>
         <div className="dragdrop-card">

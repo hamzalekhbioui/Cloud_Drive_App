@@ -11,10 +11,13 @@ const LoginPage = lazy(() => import('./pages/LoginPage'))
 const RegisterPage = lazy(() => import('./pages/RegisterPage'))
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const FilesPage = lazy(() => import('./pages/FilesPage'))
+const SharedPage = lazy(() => import('./pages/SharedPage'))
 const StarredPage = lazy(() => import('./pages/StarredPage'))
 const TrashPage = lazy(() => import('./pages/TrashPage'))
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
+const TeamsPage = lazy(() => import('./pages/TeamsPage'))
+const PricingPage = lazy(() => import('./pages/PricingPage'))
 
 function RouteMeta() {
   const { pathname } = useLocation()
@@ -28,6 +31,8 @@ function RouteMeta() {
     if (pathname.startsWith('/trash')) return 'Trash | Vault'
     if (pathname.startsWith('/analytics')) return 'Analytics | Vault'
     if (pathname.startsWith('/settings')) return 'Settings | Vault'
+    if (pathname.startsWith('/teams')) return 'Teams | Vault'
+    if (pathname.startsWith('/pricing')) return 'Pricing | Vault'
     return 'Vault'
   }, [pathname])
 
@@ -94,11 +99,13 @@ export default function App() {
                 }
               >
                 <Route path="/files" element={<FilesPage />} />
-                <Route path="/shared" element={<FilesPage />} />
+                <Route path="/shared" element={<SharedPage />} />
                 <Route path="/starred" element={<StarredPage />} />
                 <Route path="/trash" element={<TrashPage />} />
                 <Route path="/analytics" element={<AnalyticsPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/teams" element={<TeamsPage />} />
+                <Route path="/pricing" element={<PricingPage />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

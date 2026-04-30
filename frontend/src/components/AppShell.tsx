@@ -7,12 +7,14 @@ import { useTheme } from '../context/ThemeContext'
 const NAV = [
   { to: '/', label: 'Dashboard', icon: 'home' as const, end: true },
   { to: '/files', label: 'All files', icon: 'folder' as const },
-  { to: '/shared', label: 'Shared', icon: 'users' as const },
+  { to: '/shared', label: 'Shared with me', icon: 'share' as const },
+  { to: '/teams', label: 'Teams', icon: 'users' as const },
   { to: '/starred', label: 'Starred', icon: 'star' as const },
 ]
 
 const NAV_WORKSPACE = [
   { to: '/analytics', label: 'Storage analytics', icon: 'chart' as const },
+  { to: '/pricing', label: 'Plans & pricing', icon: 'tag' as const },
   { to: '/trash', label: 'Trash', icon: 'trash' as const },
   { to: '/settings', label: 'Settings', icon: 'settings' as const },
 ]
@@ -47,8 +49,9 @@ export default function AppShell() {
     if (path === '/') return ['Home']
     const segment = path.slice(1).split('/')[0]
     const map: Record<string, string> = {
-      files: 'All files', shared: 'Shared', starred: 'Starred',
+      files: 'All files', shared: 'Shared with me', starred: 'Starred',
       analytics: 'Storage analytics', trash: 'Trash', settings: 'Settings',
+      teams: 'Teams', pricing: 'Plans & pricing',
     }
     return ['Home', map[segment] || segment]
   })()

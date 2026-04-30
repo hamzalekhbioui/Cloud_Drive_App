@@ -21,14 +21,19 @@ public class FileService {
 
     private final BlobStorageService blobStorageService;
     private final FileRepository fileRepository;
+    private final SubscriptionService subscriptionService;
 
-    public FileService(BlobStorageService blobStorageService, FileRepository fileRepository) {
+    public FileService(BlobStorageService blobStorageService,
+                       FileRepository fileRepository,
+                       SubscriptionService subscriptionService) {
         this.blobStorageService = blobStorageService;
         this.fileRepository = fileRepository;
+        this.subscriptionService = subscriptionService;
     }
 
     @Transactional
     public FileResponseDto uploadFile(MultipartFile file, String userId) throws IOException {
+        subscriptionService.enforceStorageQuota(userId, file.getSize());
         String originalFileName = file.getOriginalFilename();
         String blobFileName = UUID.randomUUID().toString() + "-" + originalFileName;
 
