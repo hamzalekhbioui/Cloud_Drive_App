@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { getSharedWithMe, type ShareItem } from '../api/shares'
 import Icon from '../components/Icon'
-import { formatBytes, fileKind, TYPE_COLORS } from '../utils/files'
+import { fileKind, TYPE_COLORS } from '../utils/files'
 
 export default function SharedPage() {
   const [items, setItems] = useState<ShareItem[]>([])
