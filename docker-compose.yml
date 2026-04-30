@@ -1,0 +1,39 @@
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: clouddrive
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d clouddrive"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: .
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SERVER_PORT: 8081
+      DB_URL: jdbc:postgresql://postgres:5432/clouddrive
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: local_dev_secret_please_change_in_production_ok
+      JWT_EXPIRATION_MS: 86400000
+      ALLOWED_ORIGINS: http://localhost:5173
+      # File uploads — copy .env.example → .env and fill these in to enable uploads
+      AZURE_STORAGE_CONNECTION_STRING: ${AZURE_STORAGE_CONNECTION_STRING:-}
+      AZURE_STORAGE_CONTAINER_NAME: ${AZURE_STORAGE_CONTAINER_NAME:-files}
+
+volumes:
+  postgres_data:
