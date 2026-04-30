@@ -82,6 +82,10 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              {/* Dashboard is public — guests can browse, actions require login */}
+              <Route element={<AppShell />}>
+                <Route path="/" element={<DashboardPage />} />
+              </Route>
               <Route
                 element={
                   <PrivateRoute>
@@ -89,7 +93,6 @@ export default function App() {
                   </PrivateRoute>
                 }
               >
-                <Route path="/" element={<DashboardPage />} />
                 <Route path="/files" element={<FilesPage />} />
                 <Route path="/shared" element={<FilesPage />} />
                 <Route path="/starred" element={<StarredPage />} />

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { getMyFiles, starFile, uploadFile } from '../api/files'
 import type { FileItem } from '../api/files'
 import { useAuth } from '../context/AuthContext'
@@ -12,6 +12,7 @@ import {
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const navigate = useNavigate()
   const [files, setFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
@@ -24,6 +25,7 @@ export default function DashboardPage() {
   useEffect(() => { fetchFiles() }, [])
 
   async function fetchFiles() {
+    if (!user) { setLoading(false); return }
     try {
       const { data } = await getMyFiles()
       setFiles(data)
@@ -35,6 +37,7 @@ export default function DashboardPage() {
   }
 
   async function doUpload(file: File) {
+    if (!user) { navigate('/login'); return }
     setUploading(true); setError('')
     try {
       const { data } = await uploadFile(file)
@@ -96,11 +99,15 @@ export default function DashboardPage() {
       <div className="page-header">
         <div>
           <div className="eyebrow">{new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</div>
-          <h1 className="display">{greeting}, <em style={{ fontStyle: 'italic', color: 'var(--ink-3)' }}>{user?.name.split(' ')[0]}</em>.</h1>
+          <h1 className="display">{greeting}{user ? <>, <em style={{ fontStyle: 'italic', color: 'var(--ink-3)' }}>{user.name.split(' ')[0]}</em></> : null}.</h1>
         </div>
-        <button type="button" className="btn btn-accent" onClick={() => inputRef.current?.click()} disabled={uploading}>
-          <Icon name="upload" size={15} /> {uploading ? 'Uploading…' : 'Upload files'}
-        </button>
+        {user ? (
+          <button type="button" className="btn btn-accent" onClick={() => inputRef.current?.click()} disabled={uploading}>
+            <Icon name="upload" size={15} /> {uploading ? 'Uploading…' : 'Upload files'}
+          </button>
+        ) : (
+          <Link to="/login" className="btn btn-accent">Sign in to upload</Link>
+        )}
         <input
           ref={inputRef}
           type="file"
@@ -155,8 +162,17 @@ export default function DashboardPage() {
         <div style={{ textAlign: 'center', padding: 40, color: 'var(--ink-3)' }}>Loading…</div>
       ) : recents.length === 0 ? (
         <div style={{ textAlign: 'center', padding: 80, color: 'var(--ink-3)' }}>
-          <div style={{ fontFamily: 'var(--serif)', fontSize: 32, marginBottom: 8 }}>Your vault is empty.</div>
-          <div>Drag files anywhere on this page to upload — they'll encrypt automatically.</div>
+          {user ? (
+            <>
+              <div style={{ fontFamily: 'var(--serif)', fontSize: 32, marginBottom: 8 }}>Your vault is empty.</div>
+              <div>Drag files anywhere on this page to upload — they'll encrypt automatically.</div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontFamily: 'var(--serif)', fontSize: 32, marginBottom: 8 }}>Welcome to Vault.</div>
+              <div><Link to="/login" style={{ color: 'var(--accent)' }}>Sign in</Link> to upload and manage your files.</div>
+            </>
+          )}
         </div>
       ) : (
         <div className="file-grid">

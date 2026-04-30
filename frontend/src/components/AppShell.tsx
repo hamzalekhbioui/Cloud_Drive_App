@@ -98,10 +98,16 @@ export default function AppShell() {
         <div className="sidebar-footer">
           {!collapsed && (
             <div className="storage-card">
-              <div className="eyebrow">Signed in as</div>
-              <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4 }}>{user?.name}</div>
-              <div style={{ fontSize: 11, color: 'var(--ink-3)', fontFamily: 'var(--mono)' }}>{user?.email}</div>
-              <button className="upgrade" onClick={handleLogout} style={{ background: 'var(--surface-3)', color: 'var(--ink)' }}>Sign out</button>
+ ru              {user ? (
+                <>
+                  <div className="eyebrow">Signed in as</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4 }}>{user.name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--ink-3)', fontFamily: 'var(--mono)' }}>{user.email}</div>
+                  <button className="upgrade" onClick={handleLogout} style={{ background: 'var(--surface-3)', color: 'var(--ink)' }}>Sign out</button>
+                </>
+              ) : (
+                <button className="upgrade" onClick={() => navigate('/login')} style={{ background: 'var(--surface-3)', color: 'var(--ink)' }}>Sign in</button>
+              )}
             </div>
           )}
         </div>
@@ -137,7 +143,9 @@ export default function AppShell() {
             <button className="icon-btn" aria-label="Notifications">
               <Icon name="bell" size={17} />
             </button>
-            <button className="avatar-btn" aria-label="Profile">{user?.name.charAt(0).toUpperCase()}</button>
+            <button className="avatar-btn" aria-label="Profile" onClick={() => { if (!user) navigate('/login') }}>
+              {user ? user.name.charAt(0).toUpperCase() : '?'}
+            </button>
           </div>
           <style>{`.mobile-menu{display:none} @media (max-width: 820px){ .mobile-menu{ display: grid !important; } }`}</style>
         </header>
