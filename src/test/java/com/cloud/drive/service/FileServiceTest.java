@@ -29,6 +29,7 @@ class FileServiceTest {
 
     @Mock private BlobStorageService blobStorageService;
     @Mock private FileRepository fileRepository;
+    @Mock private SubscriptionService subscriptionService;
 
     @InjectMocks private FileService fileService;
 
