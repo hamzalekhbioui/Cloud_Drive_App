@@ -3,9 +3,9 @@ WORKDIR /app
 COPY pom.xml .
 COPY src ./src
 RUN apk add --no-cache maven && mvn package -DskipTests -q
-
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app
 COPY --from=build /app/target/*.jar app.jar
-EXPOSE 8080
+ENV PORT=8080
+EXPOSE ${PORT}
 ENTRYPOINT ["java", "-Xmx350m", "-Xms128m", "-XX:+UseContainerSupport", "-jar", "app.jar"]

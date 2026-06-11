@@ -13,7 +13,10 @@ public class AzureBlobConfig {
     @Bean
     @ConditionalOnProperty(name = "azure.storage.enabled", havingValue = "true")
     public BlobServiceClient blobServiceClient(
-            @Value("${azure.storage.connection-string}") String connectionString) {
+            @Value("${azure.storage.connection-string:}") String connectionString) {
+        if (connectionString == null || connectionString.isBlank()) {
+            return null;
+        }
         return new BlobServiceClientBuilder()
                 .connectionString(connectionString)
                 .buildClient();
