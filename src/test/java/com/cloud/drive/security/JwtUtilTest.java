@@ -2,7 +2,6 @@ package com.cloud.drive.security;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.test.util.ReflectionTestUtils;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -12,9 +11,10 @@ class JwtUtilTest {
 
     @BeforeEach
     void setUp() {
-        jwtUtil = new JwtUtil();
-        ReflectionTestUtils.setField(jwtUtil, "secret", "test-secret-key-that-is-at-least-32-characters-long");
-        ReflectionTestUtils.setField(jwtUtil, "expiration", 3_600_000L); // 1h
+        jwtUtil = new JwtUtil(
+                "test-secret-key-that-is-at-least-32-characters-long",
+                3_600_000L
+        );
     }
 
     @Test
@@ -41,9 +41,10 @@ class JwtUtilTest {
 
     @Test
     void isValid_returnsFalse_whenSignedByDifferentSecret() {
-        JwtUtil other = new JwtUtil();
-        ReflectionTestUtils.setField(other, "secret", "different-secret-key-also-32-characters-long");
-        ReflectionTestUtils.setField(other, "expiration", 3_600_000L);
+        JwtUtil other = new JwtUtil(
+                "different-secret-key-also-32-characters-long",
+                3_600_000L
+        );
 
         String foreignToken = other.generateToken("alice@example.com");
 
