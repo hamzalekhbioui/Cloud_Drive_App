@@ -11,6 +11,8 @@ import com.cloud.drive.repository.FileShareRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -19,6 +21,8 @@ import java.util.stream.Collectors;
 
 @Service
 public class ShareService {
+
+    private static final Logger log = LoggerFactory.getLogger(ShareService.class);
 
     private final FileShareRepository shareRepo;
     private final FileRepository fileRepo;
@@ -101,7 +105,9 @@ public class ShareService {
         dto.setStarred(file.isStarred());
         try {
             dto.setUrl(blobStorage.generateSasUrlForBlob(file.getBlobFileName()));
-        } catch (Exception ignored) {}
+        } catch (Exception e) {
+            log.warn("Failed to generate SAS URL for shared file {}", file.getId(), e);
+        }
         return dto;
     }
 

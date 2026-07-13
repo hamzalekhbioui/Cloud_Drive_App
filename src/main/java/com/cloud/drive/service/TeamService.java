@@ -11,8 +11,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -47,18 +51,24 @@ public class TeamService {
     }
 
     public List<TeamResponse> getMyTeams(String userEmail) {
-        List<Long> teamIds = memberRepo.findActiveTeamIdsByUserEmail(userEmail);
-        List<Long> ownedIds = teamRepo.findByOwnerEmail(userEmail).stream()
-                .map(Team::getId).collect(Collectors.toList());
-        teamIds.addAll(ownedIds.stream().filter(id -> !teamIds.contains(id)).collect(Collectors.toList()));
+        Set<Long> teamIds = new LinkedHashSet<>(memberRepo.findActiveTeamIdsByUserEmail(userEmail));
+        teamIds.addAll(teamRepo.findByOwnerEmail(userEmail).stream()
+                .map(Team::getId)
+                .collect(Collectors.toList()));
+
+        if (teamIds.isEmpty()) {
+            return List.of();
+        }
+
+        Map<Long, Team> teamsById = teamRepo.findAllById(teamIds).stream()
+                .collect(Collectors.toMap(Team::getId, t -> t, (left, right) -> left, LinkedHashMap::new));
+        Map<Long, List<TeamMember>> membersByTeamId = memberRepo.findByTeamIdIn(List.copyOf(teamIds)).stream()
+                .collect(Collectors.groupingBy(TeamMember::getTeamId, LinkedHashMap::new, Collectors.toList()));
 
         return teamIds.stream()
-                .map(id -> teamRepo.findById(id).orElse(null))
+                .map(teamsById::get)
                 .filter(t -> t != null)
-                .map(t -> {
-                    List<TeamMember> members = memberRepo.findByTeamId(t.getId());
-                    return toResponse(t, userEmail, members);
-                })
+                .map(t -> toResponse(t, userEmail, membersByTeamId.getOrDefault(t.getId(), List.of())))
                 .collect(Collectors.toList());
     }
 

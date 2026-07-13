@@ -14,9 +14,6 @@ import java.util.stream.Collectors;
 @Service
 public class AnalyticsService {
 
-    // 1 TB in bytes
-    private static final long STORAGE_LIMIT = 1024L * 1024 * 1024 * 1024;
-
     // Category colours that mirror the frontend TYPE_COLORS palette
     private static final Map<String, String> CATEGORY_COLORS = Map.of(
             "Images",    "#6B2BB8",
@@ -28,18 +25,21 @@ public class AnalyticsService {
     );
 
     private final FileRepository fileRepository;
+    private final SubscriptionService subscriptionService;
 
-    public AnalyticsService(FileRepository fileRepository) {
+    public AnalyticsService(FileRepository fileRepository, SubscriptionService subscriptionService) {
         this.fileRepository = fileRepository;
+        this.subscriptionService = subscriptionService;
     }
 
     // ── Overview ──────────────────────────────────────────────────────────
 
     public OverviewDto getOverview(String userId) {
         long used  = fileRepository.sumSizeByUser(userId);
+        long storageLimit = subscriptionService.getStorageLimitBytes(userId);
         long files = fileRepository.countByUserIdAndDeletedAtIsNull(userId);
-        double pct = STORAGE_LIMIT > 0 ? (used * 100.0) / STORAGE_LIMIT : 0;
-        return new OverviewDto(used, STORAGE_LIMIT, pct, STORAGE_LIMIT - used, files);
+        double pct = storageLimit > 0 ? (used * 100.0) / storageLimit : 0;
+        return new OverviewDto(used, storageLimit, pct, storageLimit - used, files);
     }
 
     // ── Breakdown ─────────────────────────────────────────────────────────
@@ -120,6 +120,7 @@ public class AnalyticsService {
         List<InsightDto> insights = new ArrayList<>();
 
         long used  = fileRepository.sumSizeByUser(userId);
+        long storageLimit = subscriptionService.getStorageLimitBytes(userId);
         long files = fileRepository.countByUserIdAndDeletedAtIsNull(userId);
 
         if (used == 0) {
@@ -130,15 +131,16 @@ public class AnalyticsService {
         }
 
         // 1. Storage health
-        double pct = (used * 100.0) / STORAGE_LIMIT;
+        double pct = storageLimit > 0 ? (used * 100.0) / storageLimit : 0;
+        String storageLimitLabel = humanReadable(storageLimit);
         if (pct > 80) {
             insights.add(new InsightDto("warning",
                     "Storage running low",
-                    String.format("You've used %.1f%% of your 1 TB — consider removing unused files.", pct)));
+                    String.format("You've used %.1f%% of your %s limit — consider removing unused files.", pct, storageLimitLabel)));
         } else {
             insights.add(new InsightDto("success",
                     "Storage looks healthy",
-                    String.format("You've used %.1f%% of your 1 TB limit.", pct)));
+                    String.format("You've used %.1f%% of your %s limit.", pct, storageLimitLabel)));
         }
 
         // 2. Dominant category
@@ -187,11 +189,12 @@ public class AnalyticsService {
         return "Others";
     }
 
-    /** Converts bytes to a human-readable string (KB / MB / GB). */
+    /** Converts bytes to a human-readable string (KB / MB / GB / TB). */
     private String humanReadable(long bytes) {
         if (bytes < 1024)              return bytes + " B";
         if (bytes < 1024 * 1024)       return String.format("%.0f KB", bytes / 1024.0);
         if (bytes < 1024L * 1024 * 1024) return String.format("%.1f MB", bytes / (1024.0 * 1024));
-        return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
+        if (bytes < 1024L * 1024 * 1024 * 1024) return String.format("%.2f GB", bytes / (1024.0 * 1024 * 1024));
+        return String.format("%.2f TB", bytes / (1024.0 * 1024 * 1024 * 1024));
     }
 }
