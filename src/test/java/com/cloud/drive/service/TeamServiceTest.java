@@ -1,8 +1,10 @@
 package com.cloud.drive.service;
 
 import com.cloud.drive.dto.team.InviteMemberRequest;
+import com.cloud.drive.dto.team.TeamResponse;
 import com.cloud.drive.dto.team.TeamMemberResponse;
 import com.cloud.drive.exception.ApiException;
+import com.cloud.drive.model.Team;
 import com.cloud.drive.model.TeamMember;
 import com.cloud.drive.repository.TeamMemberRepository;
 import com.cloud.drive.repository.TeamRepository;
@@ -13,12 +15,16 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -42,6 +48,15 @@ class TeamServiceTest {
         member.setRole(role);
         member.setStatus("ACTIVE");
         return member;
+    }
+
+    private Team team(Long id, String name, String ownerEmail) {
+        Team team = new Team();
+        team.setId(id);
+        team.setName(name);
+        team.setOwnerEmail(ownerEmail);
+        team.setCreatedAt(LocalDateTime.now());
+        return team;
     }
 
     @Test
@@ -73,5 +88,38 @@ class TeamServiceTest {
 
         assertThat(response.getUserEmail()).isEqualTo("new@example.com");
         assertThat(response.getRole()).isEqualTo("MEMBER");
+    }
+
+    @Test
+    void getMyTeams_usesBulkTeamAndMemberFetches() {
+        Long memberTeamId = 1L;
+        Long ownedTeamId = 2L;
+
+        Team activeTeam = team(memberTeamId, "Active", "someone@example.com");
+        Team ownedTeam = team(ownedTeamId, "Owned", OWNER);
+
+        TeamMember activeMember = new TeamMember();
+        activeMember.setTeamId(memberTeamId);
+        activeMember.setUserEmail(MEMBER);
+        activeMember.setRole("MEMBER");
+        activeMember.setStatus("ACTIVE");
+
+        TeamMember ownerMember = new TeamMember();
+        ownerMember.setTeamId(ownedTeamId);
+        ownerMember.setUserEmail(OWNER);
+        ownerMember.setRole("OWNER");
+        ownerMember.setStatus("ACTIVE");
+
+        when(memberRepo.findActiveTeamIdsByUserEmail(MEMBER)).thenReturn(List.of(memberTeamId));
+        when(teamRepo.findByOwnerEmail(MEMBER)).thenReturn(List.of(ownedTeam));
+        lenient().when(teamRepo.findAllById(any())).thenReturn(List.of(activeTeam, ownedTeam));
+        lenient().when(memberRepo.findByTeamIdIn(anyList())).thenReturn(List.of(activeMember, ownerMember));
+
+        List<TeamResponse> teams = teamService.getMyTeams(MEMBER);
+
+        assertThat(teams).hasSize(2);
+        assertThat(teams).extracting(TeamResponse::getName).containsExactly("Active", "Owned");
+        verify(teamRepo, never()).findById(any());
+        verify(memberRepo, never()).findByTeamId(any());
     }
 }
