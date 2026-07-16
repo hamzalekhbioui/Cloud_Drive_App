@@ -37,6 +37,14 @@ public class BlobStorageService {
         }
     }
 
+    /**
+     * Uploads a file by proxying it through the backend.
+     *
+     * @deprecated Use the two-phase direct-to-storage flow via {@code StorageService} instead.
+     *             This method buffers the entire file in the backend heap, wasting memory and bandwidth.
+     *             Retained only for backward compatibility with the legacy POST /upload endpoint.
+     */
+    @Deprecated
     public String uploadFile(MultipartFile file, String blobFileName) throws IOException {
         requireAzure();
         BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient(containerName);

@@ -1,9 +1,11 @@
 package com.cloud.drive.service;
 
 import com.cloud.drive.dto.FileResponseDto;
+import com.cloud.drive.dto.UploadTargetDto;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.repository.FileRepository;
+import com.cloud.drive.storage.StorageService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -22,19 +25,32 @@ import java.util.stream.Collectors;
 public class FileService {
 
     private static final Logger log = LoggerFactory.getLogger(FileService.class);
+    private static final String STATUS_ACTIVE = "ACTIVE";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final long SAS_UPLOAD_TTL_SECONDS = 600;
 
     private final BlobStorageService blobStorageService;
+    private final StorageService storageService;
     private final FileRepository fileRepository;
     private final SubscriptionService subscriptionService;
 
     public FileService(BlobStorageService blobStorageService,
+                       StorageService storageService,
                        FileRepository fileRepository,
                        SubscriptionService subscriptionService) {
         this.blobStorageService = blobStorageService;
+        this.storageService = storageService;
         this.fileRepository = fileRepository;
         this.subscriptionService = subscriptionService;
     }
 
+    // ── legacy multipart upload (retained for backward compatibility) ──────
+
+    /**
+     * @deprecated Use {@link #beginUpload} + client-side direct-to-Azure PUT + {@link #commitUpload} instead.
+     *             This method proxies the entire file body through the backend, wasting heap and bandwidth.
+     */
+    @Deprecated
     @Transactional
     public FileResponseDto uploadFile(MultipartFile file, String userId) throws IOException {
         subscriptionService.enforceStorageQuota(userId, file.getSize());
@@ -51,9 +67,58 @@ public class FileService {
         fileEntity.setType(file.getContentType());
         fileEntity.setUserId(userId);
         fileEntity.setCreatedAt(LocalDateTime.now());
+        fileEntity.setStatus(STATUS_ACTIVE);
 
         return mapToDto(fileRepository.save(fileEntity));
     }
+
+    // ── two-phase direct-to-storage upload ────────────────────────────────
+
+    /**
+     * Phase 1 — reserve quota, create a PENDING file record, and mint a short-lived
+     * write SAS URL the client can PUT to directly (bypassing the backend entirely).
+     */
+    @Transactional
+    public UploadTargetDto beginUpload(String userId, long declaredSize, String rawFileName) {
+        subscriptionService.reserveQuota(userId, declaredSize);
+
+        String safeName = sanitizeFileName(rawFileName);
+        String ext = extension(rawFileName);
+        String blobKey = userId + "/" + UUID.randomUUID() + ext;
+
+        String writeUrl = storageService.createUploadTarget(blobKey,
+                contentTypeFor(ext), declaredSize, Duration.ofSeconds(SAS_UPLOAD_TTL_SECONDS));
+
+        FileEntity pending = new FileEntity();
+        pending.setUserId(userId);
+        pending.setOriginalFileName(safeName);
+        pending.setBlobFileName(blobKey);
+        pending.setSize(declaredSize);
+        pending.setType(contentTypeFor(ext));
+        pending.setStatus(STATUS_PENDING);
+        pending.setCreatedAt(LocalDateTime.now());
+        fileRepository.save(pending);
+
+        return new UploadTargetDto(pending.getId(), writeUrl, blobKey, SAS_UPLOAD_TTL_SECONDS);
+    }
+
+    /**
+     * Phase 2 — client tells us it finished uploading; we verify the blob's actual
+     * size matches the declared size (anti-forgery) and finalize the record atomically.
+     */
+    @Transactional
+    public FileResponseDto commitUpload(Long fileId, String userId) {
+        FileEntity f = findOwned(fileId, userId);
+        if (!STATUS_PENDING.equals(f.getStatus())) {
+            throw new ApiException("Invalid commit — file is not in PENDING status", HttpStatus.CONFLICT);
+        }
+        storageService.assertLength(f.getBlobFileName(), f.getSize());
+        f.setStatus(STATUS_ACTIVE);
+        f.setUrl(storageService.createReadUrl(f.getBlobFileName(), false, Duration.ofMinutes(15)));
+        return mapToDto(fileRepository.save(f));
+    }
+
+    // ── file queries ──────────────────────────────────────────────────────
 
     public List<FileResponseDto> getFilesByUser(String userId) {
         return refreshAndMap(fileRepository.findByUserIdAndDeletedAtIsNull(userId));
@@ -74,6 +139,8 @@ public class FileService {
         response.setHeader("Content-Disposition", "inline; filename=\"" + file.getOriginalFileName() + "\"");
         blobStorageService.streamToOutput(file.getBlobFileName(), response.getOutputStream());
     }
+
+    // ── mutators ──────────────────────────────────────────────────────────
 
     @Transactional
     public void deleteFile(Long fileId, String userId) {
@@ -103,6 +170,8 @@ public class FileService {
         return mapToDto(fileRepository.save(file));
     }
 
+    // ── private helpers ────────────────────────────────────────────────────
+
     private FileEntity findOwned(Long fileId, String userId) {
         FileEntity file = fileRepository.findById(fileId)
                 .orElseThrow(() -> new ApiException("File not found", HttpStatus.NOT_FOUND));
@@ -113,17 +182,19 @@ public class FileService {
     }
 
     private List<FileResponseDto> refreshAndMap(List<FileEntity> entities) {
-        return entities.stream().map(entity -> {
-            FileResponseDto dto = mapToDto(entity);
-            if (entity.getBlobFileName() != null) {
-                try {
-                    dto.setUrl(blobStorageService.generateSasUrlForBlob(entity.getBlobFileName()));
-                } catch (Exception e) {
-                    log.warn("Failed to generate SAS URL for blob {}", entity.getBlobFileName(), e);
-                }
-            }
-            return dto;
-        }).collect(Collectors.toList());
+        return entities.stream()
+                .filter(e -> STATUS_ACTIVE.equals(e.getStatus()))
+                .map(entity -> {
+                    FileResponseDto dto = mapToDto(entity);
+                    if (entity.getBlobFileName() != null) {
+                        try {
+                            dto.setUrl(blobStorageService.generateSasUrlForBlob(entity.getBlobFileName()));
+                        } catch (Exception e) {
+                            log.warn("Failed to generate SAS URL for blob {}", entity.getBlobFileName(), e);
+                        }
+                    }
+                    return dto;
+                }).collect(Collectors.toList());
     }
 
     private FileResponseDto mapToDto(FileEntity entity) {
@@ -137,5 +208,42 @@ public class FileService {
         dto.setStarred(entity.isStarred());
         dto.setDeletedAt(entity.getDeletedAt());
         return dto;
+    }
+
+    /**
+     * Strips path traversal characters, null-bytes, and limits length.
+     */
+    private String sanitizeFileName(String raw) {
+        if (raw == null || raw.isBlank()) return "unnamed";
+        String safe = raw.replaceAll("[\\\\/]", "_")
+                .replaceAll("\u0000", "")
+                .trim();
+        return safe.length() > 255 ? safe.substring(0, 255) : safe;
+    }
+
+    private String extension(String fileName) {
+        if (fileName == null) return "";
+        int dot = fileName.lastIndexOf('.');
+        return (dot >= 0) ? fileName.substring(dot).toLowerCase() : "";
+    }
+
+    private String contentTypeFor(String ext) {
+        return switch (ext) {
+            case ".pdf" -> "application/pdf";
+            case ".doc", ".docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+            case ".xls", ".xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+            case ".ppt", ".pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation";
+            case ".png" -> "image/png";
+            case ".jpg", ".jpeg" -> "image/jpeg";
+            case ".gif" -> "image/gif";
+            case ".svg" -> "image/svg+xml";
+            case ".webp" -> "image/webp";
+            case ".mp4" -> "video/mp4";
+            case ".zip" -> "application/zip";
+            case ".txt" -> "text/plain";
+            case ".csv" -> "text/csv";
+            case ".json" -> "application/json";
+            default -> "application/octet-stream";
+        };
     }
 }

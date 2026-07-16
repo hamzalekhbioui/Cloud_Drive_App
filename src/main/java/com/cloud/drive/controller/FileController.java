@@ -1,6 +1,7 @@
 package com.cloud.drive.controller;
 
 import com.cloud.drive.dto.FileResponseDto;
+import com.cloud.drive.dto.UploadTargetDto;
 import com.cloud.drive.service.FileService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpStatus;
@@ -10,6 +11,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.Map;
 import java.io.IOException;
 import java.util.List;
 
@@ -23,12 +25,40 @@ public class FileController {
         this.fileService = fileService;
     }
 
+    // ── legacy multipart upload (retained for backward compatibility) ──────
+
+    /**
+     * @deprecated Use POST /upload/begin + direct PUT to Azure + POST /upload/{id}/commit instead.
+     */
+    @Deprecated
     @PostMapping("/upload")
     public ResponseEntity<FileResponseDto> uploadFile(
             @RequestParam("file") MultipartFile file,
             @AuthenticationPrincipal UserDetails userDetails) throws Exception {
         return new ResponseEntity<>(fileService.uploadFile(file, userDetails.getUsername()), HttpStatus.CREATED);
     }
+
+    // ── two-phase direct-to-storage upload ────────────────────────────────
+
+    /** Phase 1 — returns a write SAS URL the client PUTs to directly. */
+    @PostMapping("/upload/begin")
+    public ResponseEntity<UploadTargetDto> beginUpload(
+            @RequestBody Map<String, Object> body,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        long size = ((Number) body.get("size")).longValue();
+        String rawFileName = (String) body.get("rawFileName");
+        return ResponseEntity.ok(fileService.beginUpload(userDetails.getUsername(), size, rawFileName));
+    }
+
+    /** Phase 2 — client confirms upload; backend verifies blob and finalizes record. */
+    @PostMapping("/upload/{fileId}/commit")
+    public ResponseEntity<FileResponseDto> commitUpload(
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(fileService.commitUpload(fileId, userDetails.getUsername()));
+    }
+
+    // ── file queries ──────────────────────────────────────────────────────
 
     @GetMapping("/me")
     public ResponseEntity<List<FileResponseDto>> getMyFiles(
@@ -55,6 +85,8 @@ public class FileController {
             HttpServletResponse response) throws IOException {
         fileService.streamFile(fileId, userDetails.getUsername(), response);
     }
+
+    // ── mutators ───────────────────────────────────────────────────────────
 
     @DeleteMapping("/{fileId}")
     public ResponseEntity<Void> deleteFile(

@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const [files, setFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState('')
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
   const [shareFileId, setShareFileId] = useState<number | null>(null)
@@ -40,15 +41,15 @@ export default function DashboardPage() {
 
   async function doUpload(file: File) {
     if (!user) { navigate('/login'); return }
-    setUploading(true); setError('')
+    setUploading(true); setUploadProgress(0); setError('')
     try {
-      const { data } = await uploadFile(file)
+      const data = await uploadFile(file, (pct) => setUploadProgress(pct))
       setFiles((prev) => [data, ...prev])
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
       setError(msg || 'Upload failed. Check that the backend is running.')
     } finally {
-      setUploading(false)
+      setUploading(false); setUploadProgress(0)
     }
   }
 
@@ -105,7 +106,7 @@ export default function DashboardPage() {
         </div>
         {user ? (
           <button type="button" className="btn btn-accent" onClick={() => inputRef.current?.click()} disabled={uploading}>
-            <Icon name="upload" size={15} /> {uploading ? 'Uploading…' : 'Upload files'}
+            <Icon name="upload" size={15} /> {uploading ? `Uploading${uploadProgress > 0 ? ` ${uploadProgress}%` : '…'}` : 'Upload files'}
           </button>
         ) : (
           <Link to="/login" className="btn btn-accent">Sign in to upload</Link>

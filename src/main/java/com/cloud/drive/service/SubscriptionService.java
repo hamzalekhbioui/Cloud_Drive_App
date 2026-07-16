@@ -67,6 +67,16 @@ public class SubscriptionService {
         }
     }
 
+    /**
+     * Reserves quota atomically for a two-phase direct upload.
+     * Ensures current usage + declared size does not exceed the plan limit
+     * before the client begins uploading to Azure.
+     * Delegates to {@link #enforceStorageQuota} for the actual check.
+     */
+    public void reserveQuota(String userEmail, long declaredBytes) {
+        enforceStorageQuota(userEmail, declaredBytes);
+    }
+
     public long getStorageLimitBytes(String userEmail) {
         return subRepo.findByUserEmail(userEmail)
                 .map(Subscription::getPlanLimitBytes)

@@ -23,6 +23,8 @@ public class FileEntity {
     private LocalDateTime createdAt;
     @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean starred = false;
+    @Column(nullable = false, columnDefinition = "varchar(32) not null default 'ACTIVE'")
+    private String status = "ACTIVE";
     private LocalDateTime deletedAt;
 
     public FileEntity() {}
@@ -53,6 +55,9 @@ public class FileEntity {
 
     public boolean isStarred() { return starred; }
     public void setStarred(boolean starred) { this.starred = starred; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
 
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }

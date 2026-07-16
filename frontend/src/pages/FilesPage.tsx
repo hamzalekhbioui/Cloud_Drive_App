@@ -15,6 +15,7 @@ export default function FilesPage() {
   const [files, setFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
   const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('view') as 'grid' | 'list') || 'grid')
   const [filter, setFilter] = useState<typeof TYPE_FILTERS[number]>('all')
   const [selected, setSelected] = useState<number[]>([])
@@ -37,16 +38,16 @@ export default function FilesPage() {
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    setUploading(true); setError('')
+    setUploading(true); setUploadProgress(0); setError('')
     try {
-      const { data } = await uploadFile(file)
+      const data = await uploadFile(file, (pct) => setUploadProgress(pct))
       setFiles((prev) => [data, ...prev])
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } }; message?: string }
       const msg = axiosErr?.response?.data?.message ?? axiosErr?.message ?? 'Upload failed.'
       setError(msg)
     }
-    finally { setUploading(false); if (inputRef.current) inputRef.current.value = '' }
+    finally { setUploading(false); setUploadProgress(0); if (inputRef.current) inputRef.current.value = '' }
   }
 
   async function handleDelete(ids: number[]) {
@@ -84,7 +85,7 @@ export default function FilesPage() {
             <button className={view === 'list' ? 'active' : ''} onClick={() => setView('list')} aria-label="List view"><Icon name="list" size={15} /></button>
           </div>
           <button type="button" className="btn btn-accent" onClick={() => inputRef.current?.click()} disabled={uploading}>
-            <Icon name="upload" size={14} /> {uploading ? 'Uploading…' : 'Upload'}
+            <Icon name="upload" size={14} /> {uploading ? `Uploading${uploadProgress > 0 ? ` ${uploadProgress}%` : '…'}` : 'Upload'}
           </button>
           <input ref={inputRef} type="file" style={{ display: 'none' }} onChange={handleUpload} />
         </div>

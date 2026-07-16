@@ -15,6 +15,9 @@ public interface FileRepository extends JpaRepository<FileEntity, Long> {
     List<FileEntity> findByUserIdAndDeletedAtIsNotNull(String userId);
     List<FileEntity> findByUserIdAndStarredTrueAndDeletedAtIsNull(String userId);
 
+    /** PENDING uploads for a user (used during the two-phase direct upload handshake). */
+    List<FileEntity> findByUserIdAndStatusAndDeletedAtIsNull(String userId, String status);
+
     // ── analytics queries ───────────────────────────────────────────────────
 
     /** Total bytes used by active (non-trashed) files for a user. */
