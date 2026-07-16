@@ -15,6 +15,7 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -138,6 +139,24 @@ public class FileService {
         response.setContentType(contentType);
         response.setHeader("Content-Disposition", "inline; filename=\"" + file.getOriginalFileName() + "\"");
         blobStorageService.streamToOutput(file.getBlobFileName(), response.getOutputStream());
+    }
+
+    /**
+     * Returns the file entity owned by the given user, for range-aware streaming.
+     */
+    public FileEntity findOwnedForStream(Long fileId, String userId) {
+        return findOwned(fileId, userId);
+    }
+
+    /**
+     * Stream bytes from the underlying storage to the given output, supporting byte-range.
+     *
+     * @param file  the file entity
+     * @param range two-element array [firstByte, lastByte] (inclusive), or {@code null} for the whole file
+     * @param out   the servlet output stream
+     */
+    public void stream(FileEntity file, long[] range, OutputStream out) {
+        storageService.streamTo(file.getBlobFileName(), range, out);
     }
 
     // ── mutators ──────────────────────────────────────────────────────────
