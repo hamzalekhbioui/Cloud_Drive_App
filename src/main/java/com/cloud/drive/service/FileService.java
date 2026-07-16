@@ -5,6 +5,7 @@ import com.cloud.drive.dto.UploadTargetDto;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.repository.FileRepository;
+import com.cloud.drive.security.FilenamePolicy;
 import com.cloud.drive.storage.StorageService;
 import com.cloud.drive.util.MimePolicy;
 import org.springframework.http.HttpStatus;
@@ -56,16 +57,20 @@ public class FileService {
     @Transactional
     public FileResponseDto uploadFile(MultipartFile file, String userId) throws IOException {
         subscriptionService.enforceStorageQuota(userId, file.getSize());
-        String originalFileName = file.getOriginalFilename();
-        String blobFileName = UUID.randomUUID().toString() + "-" + originalFileName;
+
+        // sanitise + validate extension before accepting
+        String safeName = FilenamePolicy.sanitize(file.getOriginalFilename());
+        FilenamePolicy.extension(safeName);   // throws 400 if denied/unknown
+
+        String blobFileName = UUID.randomUUID().toString() + "-" + safeName;
 
         // P2.1 — detect MIME from magic bytes, never trust client Content-Type
-        String detectedType = MimePolicy.detect(file.getInputStream(), originalFileName);
+        String detectedType = MimePolicy.detect(file.getInputStream(), safeName);
 
         String sasUrl = blobStorageService.uploadFile(file, blobFileName, detectedType);
 
         FileEntity fileEntity = new FileEntity();
-        fileEntity.setOriginalFileName(originalFileName);
+        fileEntity.setOriginalFileName(safeName);
         fileEntity.setBlobFileName(blobFileName);
         fileEntity.setUrl(sasUrl);
         fileEntity.setSize(file.getSize());
@@ -87,12 +92,12 @@ public class FileService {
     public UploadTargetDto beginUpload(String userId, long declaredSize, String rawFileName) {
         subscriptionService.reserveQuota(userId, declaredSize);
 
-        String safeName = sanitizeFileName(rawFileName);
-        String ext = extension(rawFileName);
+        String safeName = FilenamePolicy.sanitize(rawFileName);
+        String ext = FilenamePolicy.extension(safeName);      // throws 400 if denied/unknown
         String blobKey = userId + "/" + UUID.randomUUID() + ext;
 
-        // P2.1 — validate extension-derived type against the allow-list
-        String contentType = contentTypeFor(ext);
+        String contentType = FilenamePolicy.contentTypeFor(ext);
+        // P2.1 — also validate against MimePolicy allow-list for defense-in-depth
         MimePolicy.validateType(contentType);
 
         String writeUrl = storageService.createUploadTarget(blobKey,
@@ -237,40 +242,6 @@ public class FileService {
         return dto;
     }
 
-    /**
-     * Strips path traversal characters, null-bytes, and limits length.
-     */
-    private String sanitizeFileName(String raw) {
-        if (raw == null || raw.isBlank()) return "unnamed";
-        String safe = raw.replaceAll("[\\\\/]", "_")
-                .replaceAll("\u0000", "")
-                .trim();
-        return safe.length() > 255 ? safe.substring(0, 255) : safe;
-    }
-
-    private String extension(String fileName) {
-        if (fileName == null) return "";
-        int dot = fileName.lastIndexOf('.');
-        return (dot >= 0) ? fileName.substring(dot).toLowerCase() : "";
-    }
-
-    private String contentTypeFor(String ext) {
-        return switch (ext) {
-            case ".pdf" -> "application/pdf";
-            case ".doc", ".docx" -> "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-            case ".xls", ".xlsx" -> "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
-            case ".ppt", ".pptx" -> "application/vnd.openxmlformats-officedocument.presentationml.presentation";
-            case ".png" -> "image/png";
-            case ".jpg", ".jpeg" -> "image/jpeg";
-            case ".gif" -> "image/gif";
-            case ".svg" -> "image/svg+xml";
-            case ".webp" -> "image/webp";
-            case ".mp4" -> "video/mp4";
-            case ".zip" -> "application/zip";
-            case ".txt" -> "text/plain";
-            case ".csv" -> "text/csv";
-            case ".json" -> "application/json";
-            default -> "application/octet-stream";
-        };
-    }
+    // sanitizeFileName(), extension(), contentTypeFor() have been replaced by
+    // FilenamePolicy — a centralised, security-hardened utility in the security package.
 }

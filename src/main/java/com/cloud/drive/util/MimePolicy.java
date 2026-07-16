@@ -6,8 +6,6 @@ import org.springframework.http.HttpStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
 /**
@@ -92,16 +90,5 @@ public final class MimePolicy {
      */
     public static boolean shouldInline(String contentType) {
         return contentType != null && INLINE_SAFE.contains(contentType.toLowerCase());
-    }
-
-    /**
-     * RFC 5987 / RFC 6266 compliant filename encoding for Content-Disposition.
-     * Produces a value safe for use in {@code filename*=UTF-8''...} when the
-     * name contains non-ASCII characters, and a plain ASCII fallback otherwise.
-     */
-    public static String encodeFilename(String rawName) {
-        if (rawName == null || rawName.isBlank()) return "download";
-        return URLEncoder.encode(rawName, StandardCharsets.UTF_8)
-                .replace("+", "%20");
     }
 }

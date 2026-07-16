@@ -3,6 +3,7 @@ package com.cloud.drive.controller;
 import com.cloud.drive.dto.FileResponseDto;
 import com.cloud.drive.dto.UploadTargetDto;
 import com.cloud.drive.model.FileEntity;
+import com.cloud.drive.security.FilenamePolicy;
 import com.cloud.drive.service.FileService;
 import com.cloud.drive.util.MimePolicy;
 import com.cloud.drive.util.RangeSupport;
@@ -104,7 +105,7 @@ public class FileController {
 
         String disposition = MimePolicy.shouldInline(f.getType())
                 ? "inline"
-                : "attachment; filename=\"" + MimePolicy.encodeFilename(f.getOriginalFileName()) + "\"";
+                : "attachment; filename=\"" + FilenamePolicy.encodeFilename(f.getOriginalFileName()) + "\"";
 
         StreamingResponseBody body = out -> fileService.stream(f, range, out);
 
