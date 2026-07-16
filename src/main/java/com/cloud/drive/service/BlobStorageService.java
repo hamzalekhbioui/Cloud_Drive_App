@@ -43,9 +43,13 @@ public class BlobStorageService {
      * @deprecated Use the two-phase direct-to-storage flow via {@code StorageService} instead.
      *             This method buffers the entire file in the backend heap, wasting memory and bandwidth.
      *             Retained only for backward compatibility with the legacy POST /upload endpoint.
+     *
+     * @param file                the multipart file
+     * @param blobFileName        the blob key
+     * @param validatedContentType the server-detected MIME type (never trust client header)
      */
     @Deprecated
-    public String uploadFile(MultipartFile file, String blobFileName) throws IOException {
+    public String uploadFile(MultipartFile file, String blobFileName, String validatedContentType) throws IOException {
         requireAzure();
         BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient(containerName);
         containerClient.createIfNotExists();
@@ -53,10 +57,10 @@ public class BlobStorageService {
 
         blobClient.upload(file.getInputStream(), file.getSize(), true);
 
-        // Set content type so browsers can render the file inline
+        // P2.1 — use server-detected MIME type; default to attachment to prevent XSS
         BlobHttpHeaders headers = new BlobHttpHeaders()
-                .setContentType(file.getContentType())
-                .setContentDisposition("inline");
+                .setContentType(validatedContentType)
+                .setContentDisposition("attachment");
         blobClient.setHttpHeaders(headers);
 
         return generateSasUrl(blobClient);
@@ -89,10 +93,10 @@ public class BlobStorageService {
         BlobSasPermission permission = new BlobSasPermission().setReadPermission(true);
         OffsetDateTime expiryTime = OffsetDateTime.now().plusHours(1);
 
-        // setContentDisposition("inline") overrides the response header via the rscd SAS parameter,
-        // forcing browsers to display the file rather than download it — works for old and new blobs
+        // P2.1 — default to attachment to prevent stored XSS;
+        // inline rendering is handled by the streaming endpoint with MimePolicy checks
         BlobServiceSasSignatureValues values = new BlobServiceSasSignatureValues(expiryTime, permission)
-                .setContentDisposition("inline");
+                .setContentDisposition("attachment");
 
         String sasToken = blobClient.generateSas(values);
         return blobClient.getBlobUrl() + "?" + sasToken;

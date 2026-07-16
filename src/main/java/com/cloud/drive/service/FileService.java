@@ -6,6 +6,7 @@ import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.repository.FileRepository;
 import com.cloud.drive.storage.StorageService;
+import com.cloud.drive.util.MimePolicy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -58,14 +59,17 @@ public class FileService {
         String originalFileName = file.getOriginalFilename();
         String blobFileName = UUID.randomUUID().toString() + "-" + originalFileName;
 
-        String sasUrl = blobStorageService.uploadFile(file, blobFileName);
+        // P2.1 — detect MIME from magic bytes, never trust client Content-Type
+        String detectedType = MimePolicy.detect(file.getInputStream(), originalFileName);
+
+        String sasUrl = blobStorageService.uploadFile(file, blobFileName, detectedType);
 
         FileEntity fileEntity = new FileEntity();
         fileEntity.setOriginalFileName(originalFileName);
         fileEntity.setBlobFileName(blobFileName);
         fileEntity.setUrl(sasUrl);
         fileEntity.setSize(file.getSize());
-        fileEntity.setType(file.getContentType());
+        fileEntity.setType(detectedType);
         fileEntity.setUserId(userId);
         fileEntity.setCreatedAt(LocalDateTime.now());
         fileEntity.setStatus(STATUS_ACTIVE);
@@ -87,15 +91,19 @@ public class FileService {
         String ext = extension(rawFileName);
         String blobKey = userId + "/" + UUID.randomUUID() + ext;
 
+        // P2.1 — validate extension-derived type against the allow-list
+        String contentType = contentTypeFor(ext);
+        MimePolicy.validateType(contentType);
+
         String writeUrl = storageService.createUploadTarget(blobKey,
-                contentTypeFor(ext), declaredSize, Duration.ofSeconds(SAS_UPLOAD_TTL_SECONDS));
+                contentType, declaredSize, Duration.ofSeconds(SAS_UPLOAD_TTL_SECONDS));
 
         FileEntity pending = new FileEntity();
         pending.setUserId(userId);
         pending.setOriginalFileName(safeName);
         pending.setBlobFileName(blobKey);
         pending.setSize(declaredSize);
-        pending.setType(contentTypeFor(ext));
+        pending.setType(contentType);
         pending.setStatus(STATUS_PENDING);
         pending.setCreatedAt(LocalDateTime.now());
         fileRepository.save(pending);
