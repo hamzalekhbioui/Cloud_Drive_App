@@ -18,6 +18,9 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import org.springframework.beans.factory.annotation.Value;
 
+import org.springframework.security.config.Customizer;
+import org.springframework.security.web.header.writers.ReferrerPolicyHeaderWriter.ReferrerPolicy;
+
 import java.util.Arrays;
 import java.util.List;
 
@@ -42,6 +45,25 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .csrf(csrf -> csrf.disable())
             .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .headers(h -> h
+                .contentTypeOptions(Customizer.withDefaults())                        // X-Content-Type-Options: nosniff
+                .frameOptions(fo -> fo.deny())                                        // X-Frame-Options: DENY
+                .httpStrictTransportSecurity(hsts -> hsts
+                    .includeSubDomains(true)
+                    .maxAgeInSeconds(63_072_000)                                      // 2 years
+                    .preload(true))
+                .referrerPolicy(rp -> rp.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                .permissionsPolicy(p -> p.policy("geolocation=(), microphone=(), camera=()"))
+                .contentSecurityPolicy(csp -> csp.policyDirectives(
+                    "default-src 'self'; "
+                  + "img-src 'self' data: blob: https:; "
+                  + "media-src 'self' blob:; "
+                  + "style-src 'self' 'unsafe-inline'; "
+                  + "script-src 'self'; "
+                  + "object-src 'none'; "
+                  + "base-uri 'self'; "
+                  + "frame-ancestors 'none'; "
+                  + "connect-src 'self' https://*.blob.core.windows.net")))
             .authorizeHttpRequests(auth -> auth
                 .requestMatchers(
                     "/api/auth/**",
