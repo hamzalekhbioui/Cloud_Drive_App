@@ -28,7 +28,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/clouddrive
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
-      JWT_SECRET: local_dev_secret_please_change_in_production_ok
+      JWT_SECRET: ${JWT_SECRET:}  # REQUIRED — set via .env or environment
       JWT_EXPIRATION_MS: 86400000
       ALLOWED_ORIGINS: http://localhost:5173
       # File uploads — copy .env.example → .env and fill these in to enable uploads
