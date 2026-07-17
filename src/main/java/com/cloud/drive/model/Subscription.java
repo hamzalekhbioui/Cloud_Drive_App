@@ -33,6 +33,14 @@ public class Subscription {
     private String stripeCustomerId;
     private String stripeSubscriptionId;
 
+    /** Cumulative storage consumed — maintained atomically under pessimistic lock. */
+    @Column(name = "used_bytes", nullable = false)
+    private long usedBytes = 0;
+
+    /** Optimistic-lock version for dirty-check safety. */
+    @Version
+    private Long version;
+
     public Subscription() {}
 
     public long getPlanLimitBytes() {
@@ -41,6 +49,11 @@ public class Subscription {
             case "BUSINESS" -> BUSINESS_BYTES;
             default         -> FREE_BYTES;
         };
+    }
+
+    /** Atomically reserves additional bytes (caller must hold the row lock). */
+    public void reserve(long bytes) {
+        this.usedBytes += bytes;
     }
 
     public Long getId() { return id; }
@@ -66,4 +79,10 @@ public class Subscription {
 
     public String getStripeSubscriptionId() { return stripeSubscriptionId; }
     public void setStripeSubscriptionId(String stripeSubscriptionId) { this.stripeSubscriptionId = stripeSubscriptionId; }
+
+    public long getUsedBytes() { return usedBytes; }
+    public void setUsedBytes(long usedBytes) { this.usedBytes = usedBytes; }
+
+    public Long getVersion() { return version; }
+    public void setVersion(Long version) { this.version = version; }
 }

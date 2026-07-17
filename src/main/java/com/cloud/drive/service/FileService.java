@@ -193,6 +193,10 @@ public class FileService {
         FileEntity file = findOwned(fileId, userId);
         blobStorageService.deleteFile(file.getBlobFileName());
         fileRepository.delete(file);
+        // Release quota so the usedBytes counter stays accurate
+        if (file.getSize() != null && file.getSize() > 0) {
+            subscriptionService.releaseQuota(userId, file.getSize());
+        }
     }
 
     @Transactional
