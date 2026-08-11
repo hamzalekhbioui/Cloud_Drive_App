@@ -46,8 +46,9 @@ export default function DashboardPage() {
       const data = await uploadFile(file, (pct) => setUploadProgress(pct))
       setFiles((prev) => [data, ...prev])
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg || 'Upload failed. Check that the backend is running.')
+      const axiosErr = err as { response?: { data?: { message?: string } }; message?: string; request?: any }
+      const msg = axiosErr?.response?.data?.message ?? axiosErr?.message ?? 'Upload failed.'
+      setError(msg)
     } finally {
       setUploading(false); setUploadProgress(0)
     }

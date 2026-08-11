@@ -54,7 +54,7 @@ class FileServiceTest {
     void uploadFile_persistsEntityWithFreshSasUrl() throws IOException {
         MockMultipartFile multipart = new MockMultipartFile(
                 "file", "report.pdf", "application/pdf", "data".getBytes());
-        when(blobStorageService.uploadFile(any(), anyString())).thenReturn("https://blob/sas-url");
+        when(blobStorageService.uploadFile(any(), anyString(), anyString())).thenReturn("https://blob/sas-url");
         when(fileRepository.save(any(FileEntity.class))).thenAnswer(inv -> inv.getArgument(0));
 
         FileResponseDto dto = fileService.uploadFile(multipart, OWNER);

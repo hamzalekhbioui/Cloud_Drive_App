@@ -37,35 +37,54 @@ const requestUploadTarget = (file: File) =>
     rawFileName: file.name,
   })
 
-/**
- * Upload a file directly to Azure via a pre-signed SAS URL.
- * Phase 1: POST /upload/begin → get writeUrl
- * Phase 2: PUT to Azure (no backend in the middle)
- * Phase 3: POST /upload/{id}/commit → backend verifies & finalises
- */
-export const uploadDirect = async (
+/** Legacy upload via backend proxy (multipart). */
+export const uploadMultipart = async (
   file: File,
-  onProgress?: (pct: number) => void,
+  onProgress?: (pct: number) => void
 ): Promise<FileItem> => {
-  const { data: target } = await requestUploadTarget(file)
-
-  // Client PUTs straight to Azure — no body through the backend
-  await axios.put(target.writeUrl, file, {
-    headers: {
-      'x-ms-blob-type': 'BlockBlob',
-      'Content-Type': file.type,
-      'x-ms-blob-content-disposition': 'inline',
-    },
+  const formData = new FormData()
+  formData.append('file', file)
+  const { data } = await client.post<FileItem>('/files/upload', formData, {
     onUploadProgress: (e) => {
       if (onProgress && e.total) onProgress(Math.round((e.loaded * 100) / e.total))
     },
   })
-
-  // Backend verifies blob size (anti-forgery) and finalises the record
-  const { data } = await client.post<FileItem>(`/files/upload/${target.uploadId}/commit`)
   return data
 }
 
-/** Convenience wrapper that matches the old uploadFile signature. */
-export const uploadFile = (file: File, onProgress?: (pct: number) => void) =>
-  uploadDirect(file, onProgress)
+/**
+ * Upload a file directly to Azure via a pre-signed SAS URL.
+ * Fallback to multipart if direct upload fails (e.g. CORS/Network issues).
+ */
+export const uploadFile = async (
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<FileItem> => {
+  try {
+    const { data: target } = await requestUploadTarget(file)
+
+    await axios.put(target.writeUrl, file, {
+      headers: {
+        'x-ms-blob-type': 'BlockBlob',
+        'Content-Type': file.type,
+        'x-ms-blob-content-disposition': 'inline',
+      },
+      onUploadProgress: (e) => {
+        if (onProgress && e.total) onProgress(Math.round((e.loaded * 100) / e.total))
+      },
+    })
+
+    const { data } = await client.post<FileItem>(`/files/upload/${target.uploadId}/commit`)
+    return data
+  } catch (err: any) {
+    // If it's a CORS error (no response) or Azure-specific error, try the legacy multipart upload
+    const isNetworkOrCorsError = !err.response && err.request
+    const isAzureError = err.config?.url?.includes('blob.core.windows.net')
+
+    if (isNetworkOrCorsError || isAzureError) {
+      console.warn('Direct upload failed (possibly CORS). Falling back to multipart proxy upload.', err)
+      return uploadMultipart(file, onProgress)
+    }
+    throw err
+  }
+}

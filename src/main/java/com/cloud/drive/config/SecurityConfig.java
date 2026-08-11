@@ -53,7 +53,8 @@ public class SecurityConfig {
                     .maxAgeInSeconds(63_072_000)                                      // 2 years
                     .preload(true))
                 .referrerPolicy(rp -> rp.policy(ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
-                .permissionsPolicy(p -> p.policy("geolocation=(), microphone=(), camera=()"))
+                .permissionsPolicy(p -> p.policy("geolocation=(), microphone=(), camera=()")))
+            .headers(h -> h
                 .contentSecurityPolicy(csp -> csp.policyDirectives(
                     "default-src 'self'; "
                   + "img-src 'self' data: blob: https:; "
