@@ -50,18 +50,49 @@ class ShareServiceTest {
     }
 
     @Test
-    void resolvePublicToken_throwsGone_whenShareExpired() {
+    void resolvePublicToken_throwsGone_whenShareRevoked() {
         FileShare share = new FileShare();
         share.setFileId(10L);
-        share.setToken("token-1");
-        share.setExpiresAt(LocalDateTime.now().minusMinutes(1));
-        when(shareRepo.findByToken("token-1")).thenReturn(Optional.of(share));
+        share.setToken("token-revoked");
+        share.setRevokedAt(LocalDateTime.now().minusMinutes(1));
+        when(shareRepo.findByToken("token-revoked")).thenReturn(Optional.of(share));
 
-        assertThatThrownBy(() -> shareService.resolvePublicToken("token-1"))
+        assertThatThrownBy(() -> shareService.resolvePublicToken("token-revoked"))
                 .isInstanceOf(ApiException.class)
                 .hasFieldOrPropertyWithValue("status", HttpStatus.GONE);
 
         verify(fileRepo, never()).findById(any());
+    }
+
+    @Test
+    void createShare_enforcesOneDayExpiration() {
+        when(fileRepo.findById(10L)).thenReturn(Optional.of(file()));
+        when(shareRepo.save(any(FileShare.class))).thenAnswer(i -> i.getArgument(0));
+
+        CreateShareRequest req = new CreateShareRequest();
+        req.setPermission("VIEW");
+        // Even if requester tries to set a different date
+        req.setExpiresAt(LocalDateTime.now().plusDays(10));
+
+        var response = shareService.createShare(10L, OWNER, req);
+
+        assertThat(response.getExpiresAt()).isNotNull();
+        assertThat(response.getExpiresAt()).isBeforeOrEqualTo(LocalDateTime.now().plusDays(1).plusSeconds(5));
+        assertThat(response.getExpiresAt()).isAfterOrEqualTo(LocalDateTime.now().plusDays(1).minusSeconds(5));
+    }
+
+    @Test
+    void createShare_usesSecureToken() {
+        when(fileRepo.findById(10L)).thenReturn(Optional.of(file()));
+        when(shareRepo.save(any(FileShare.class))).thenAnswer(i -> i.getArgument(0));
+
+        CreateShareRequest req = new CreateShareRequest();
+        req.setPermission("VIEW");
+
+        var response = shareService.createShare(10L, OWNER, req);
+
+        assertThat(response.getToken()).hasSize(43); // 32 bytes base64url is 43 chars
+        assertThat(response.getToken()).doesNotContain("+", "/", "=");
     }
 
     @Test

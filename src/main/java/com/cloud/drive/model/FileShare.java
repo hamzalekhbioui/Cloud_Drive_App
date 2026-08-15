@@ -29,6 +29,7 @@ public class FileShare {
 
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
+    private LocalDateTime revokedAt;
 
     public FileShare() {}
 
@@ -55,4 +56,7 @@ public class FileShare {
 
     public LocalDateTime getExpiresAt() { return expiresAt; }
     public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+
+    public LocalDateTime getRevokedAt() { return revokedAt; }
+    public void setRevokedAt(LocalDateTime revokedAt) { this.revokedAt = revokedAt; }
 }

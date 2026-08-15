@@ -12,6 +12,7 @@ public class ShareResponse {
     private String permission;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
+    private LocalDateTime revokedAt;
     /** Populated when this is a file-shared-with-me response. */
     private String publicLink;
 
@@ -41,6 +42,9 @@ public class ShareResponse {
 
     public LocalDateTime getExpiresAt() { return expiresAt; }
     public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
+
+    public LocalDateTime getRevokedAt() { return revokedAt; }
+    public void setRevokedAt(LocalDateTime revokedAt) { this.revokedAt = revokedAt; }
 
     public String getPublicLink() { return publicLink; }
     public void setPublicLink(String publicLink) { this.publicLink = publicLink; }

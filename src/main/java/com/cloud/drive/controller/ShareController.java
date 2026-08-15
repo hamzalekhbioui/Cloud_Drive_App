@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/shares")
+@RequestMapping
 public class ShareController {
 
     private final ShareService shareService;
@@ -33,7 +33,7 @@ public class ShareController {
         this.blobStorage = blobStorage;
     }
 
-    @PostMapping("/files/{fileId}")
+    @PostMapping("/api/documents/{fileId}/shares")
     @ResponseStatus(HttpStatus.CREATED)
     public ShareResponse createShare(
             @PathVariable Long fileId,
@@ -42,19 +42,25 @@ public class ShareController {
         return shareService.createShare(fileId, ud.getUsername(), req);
     }
 
-    @GetMapping("/files/{fileId}")
+    @GetMapping("/api/documents/{fileId}/shares")
     public List<ShareResponse> getSharesForFile(
             @PathVariable Long fileId,
             @AuthenticationPrincipal UserDetails ud) {
-        return shareService.getSharesForFile(fileId, ud.getUsername());
+        return shareService.getActiveSharesForFile(fileId, ud.getUsername());
     }
 
-    @DeleteMapping("/{shareId}")
+    @DeleteMapping("/api/documents/{fileId}/shares")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void revokeShare(
-            @PathVariable Long shareId,
+            @PathVariable Long fileId,
             @AuthenticationPrincipal UserDetails ud) {
-        shareService.revokeShare(shareId, ud.getUsername());
+        // Find the active share for this file and revoke it
+        List<ShareResponse> active = shareService.getActiveSharesForFile(fileId, ud.getUsername());
+        if (active.isEmpty()) {
+            throw new ApiException("No active share found for this document", HttpStatus.NOT_FOUND);
+        }
+        // Assuming one active share as per requirements simplicity preference
+        shareService.revokeShare(active.get(0).getId(), ud.getUsername());
     }
 
     /**
@@ -62,7 +68,7 @@ public class ShareController {
      * Uses {@link SharedFileResponse} — intentionally omits share tokens
      * so recipients cannot bypass permission checks via the public stream endpoint.
      */
-    @GetMapping("/shared-with-me")
+    @GetMapping("/api/shares/shared-with-me")
     public List<SharedFileResponse> sharedWithMe(@AuthenticationPrincipal UserDetails ud) {
         return shareService.getFilesSharedWithMe(ud.getUsername());
     }

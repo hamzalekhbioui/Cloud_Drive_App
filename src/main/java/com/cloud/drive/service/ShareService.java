@@ -9,6 +9,8 @@ import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.model.FileShare;
 import com.cloud.drive.repository.FileRepository;
 import com.cloud.drive.repository.FileShareRepository;
+import com.cloud.drive.util.TokenGenerator;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,6 +31,9 @@ public class ShareService {
     private final FileRepository fileRepo;
     private final BlobStorageService blobStorage;
 
+    @Value("${app.public-base-url:http://localhost:8082}")
+    private String publicBaseUrl;
+
     public ShareService(FileShareRepository shareRepo, FileRepository fileRepo, BlobStorageService blobStorage) {
         this.shareRepo = shareRepo;
         this.fileRepo = fileRepo;
@@ -47,10 +52,11 @@ public class ShareService {
         share.setFileId(fileId);
         share.setOwnerEmail(ownerEmail);
         share.setSharedWithEmail(req.getSharedWithEmail());
-        share.setToken(UUID.randomUUID().toString());
+        share.setToken(TokenGenerator.generateToken());
         share.setPermission(req.getPermission() != null ? req.getPermission() : "VIEW");
         share.setCreatedAt(LocalDateTime.now());
-        share.setExpiresAt(req.getExpiresAt());
+        // Enforce 1-day expiration policy for all shares
+        share.setExpiresAt(LocalDateTime.now().plusDays(1));
 
         return toResponse(shareRepo.save(share), file.getOriginalFileName());
     }
@@ -73,7 +79,20 @@ public class ShareService {
         if (!share.getOwnerEmail().equals(ownerEmail)) {
             throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
         }
-        shareRepo.delete(share);
+        share.setRevokedAt(LocalDateTime.now());
+        shareRepo.save(share);
+    }
+
+    public List<ShareResponse> getActiveSharesForFile(Long fileId, String ownerEmail) {
+        FileEntity file = fileRepo.findById(fileId)
+                .orElseThrow(() -> new ApiException("File not found", HttpStatus.NOT_FOUND));
+        if (!file.getUserId().equals(ownerEmail)) {
+            throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
+        }
+        return shareRepo.findByFileId(fileId).stream()
+                .filter(s -> s.getRevokedAt() == null)
+                .map(s -> toResponse(s, file.getOriginalFileName()))
+                .collect(Collectors.toList());
     }
 
     public List<SharedFileResponse> getFilesSharedWithMe(String userEmail) {
@@ -91,6 +110,9 @@ public class ShareService {
     public FileResponseDto resolvePublicToken(String token) {
         FileShare share = shareRepo.findByToken(token)
                 .orElseThrow(() -> new ApiException("Share link not found or expired", HttpStatus.NOT_FOUND));
+        if (share.getRevokedAt() != null) {
+            throw new ApiException("Share link has been revoked", HttpStatus.GONE);
+        }
         if (share.getExpiresAt() != null && share.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new ApiException("Share link has expired", HttpStatus.GONE);
         }
@@ -119,6 +141,9 @@ public class ShareService {
     public FileShare resolveTokenForStream(String token) {
         FileShare share = shareRepo.findByToken(token)
                 .orElseThrow(() -> new ApiException("Share link not found or expired", HttpStatus.NOT_FOUND));
+        if (share.getRevokedAt() != null) {
+            throw new ApiException("Share link has been revoked", HttpStatus.GONE);
+        }
         if (share.getExpiresAt() != null && share.getExpiresAt().isBefore(LocalDateTime.now())) {
             throw new ApiException("Share link has expired", HttpStatus.GONE);
         }
@@ -143,6 +168,8 @@ public class ShareService {
         r.setPermission(s.getPermission());
         r.setCreatedAt(s.getCreatedAt());
         r.setExpiresAt(s.getExpiresAt());
+        r.setRevokedAt(s.getRevokedAt());
+        r.setPublicLink(publicBaseUrl + "/public/" + s.getToken());
         return r;
     }
 

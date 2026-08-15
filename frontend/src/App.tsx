@@ -18,6 +18,7 @@ const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const TeamsPage = lazy(() => import('./pages/TeamsPage'))
 const PricingPage = lazy(() => import('./pages/PricingPage'))
+const PublicSharePage = lazy(() => import('./pages/PublicSharePage'))
 
 function RouteMeta() {
   const { pathname } = useLocation()
@@ -87,6 +88,7 @@ export default function App() {
             <Routes>
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/public/:token" element={<PublicSharePage />} />
               {/* Dashboard is public — guests can browse, actions require login */}
               <Route element={<AppShell />}>
                 <Route path="/" element={<DashboardPage />} />

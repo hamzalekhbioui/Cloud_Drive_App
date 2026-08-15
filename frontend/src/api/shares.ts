@@ -20,10 +20,13 @@ export interface CreateSharePayload {
 }
 
 export const createShare = (fileId: number, payload: CreateSharePayload) =>
-  client.post<ShareItem>(`/shares/files/${fileId}`, payload)
+  client.post<ShareItem>(`/documents/${fileId}/shares`, payload)
 
 export const getSharesForFile = (fileId: number) =>
-  client.get<ShareItem[]>(`/shares/files/${fileId}`)
+  client.get<ShareItem[]>(`/documents/${fileId}/shares`)
+
+export const revokeShareForFile = (fileId: number) =>
+  client.delete(`/documents/${fileId}/shares`)
 
 export const revokeShare = (shareId: number) =>
   client.delete(`/shares/${shareId}`)
