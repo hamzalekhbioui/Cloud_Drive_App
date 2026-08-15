@@ -357,6 +357,10 @@ export default function LoginPage() {
                 <Link to="/register" className="gl-footer-link">Create an account</Link>
               </motion.p>
 
+              <motion.div variants={itemVariants} className="gl-hamza-footer">
+                Built by Hamza
+              </motion.div>
+
             </form>
           </motion.div>
         </motion.div>
