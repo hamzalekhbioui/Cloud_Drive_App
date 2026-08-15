@@ -6,8 +6,8 @@
 -- version     : JPA @Version for optimistic locking / dirty-check safety
 -- ============================================================================
 
-ALTER TABLE subscriptions ADD COLUMN used_bytes BIGINT NOT NULL DEFAULT 0;
-ALTER TABLE subscriptions ADD COLUMN version   BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS used_bytes BIGINT NOT NULL DEFAULT 0;
+ALTER TABLE subscriptions ADD COLUMN IF NOT EXISTS version   BIGINT NOT NULL DEFAULT 0;
 
 -- Seed used_bytes from the actual file table so existing rows are accurate.
 UPDATE subscriptions s
