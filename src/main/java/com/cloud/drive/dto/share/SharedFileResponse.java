@@ -16,6 +16,7 @@ public class SharedFileResponse {
     private String permission;
     private Long size;
     private String type;
+    private String token;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
 
@@ -39,6 +40,9 @@ public class SharedFileResponse {
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
+
+    public String getToken() { return token; }
+    public void setToken(String token) { this.token = token; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

@@ -2,6 +2,7 @@ package com.cloud.drive.service;
 
 import com.cloud.drive.dto.FileResponseDto;
 import com.cloud.drive.dto.share.CreateShareRequest;
+import com.cloud.drive.dto.share.SharedFileResponse;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.model.FileShare;
@@ -15,6 +16,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -109,6 +111,25 @@ class ShareServiceTest {
         assertThat(response.getToken()).hasSize(43); // 32 bytes base64url is 43 chars
         assertThat(response.getToken()).doesNotContain("+", "/", "=");
     }
+    @Test
+    void getFilesSharedWithMe_returnsFilesForRecipient() {
+        FileShare share = new FileShare();
+        share.setFileId(10L);
+        share.setSharedWithEmail("bob@example.com");
+        share.setOwnerEmail("alice@example.com");
+        share.setExpiresAt(LocalDateTime.now().plusDays(1));
+        share.setPermission("VIEW");
+        
+        when(shareRepo.findBySharedWithEmail("bob@example.com")).thenReturn(List.of(share));
+        when(fileRepo.findById(10L)).thenReturn(Optional.of(file()));
+
+        List<SharedFileResponse> results = shareService.getFilesSharedWithMe("bob@example.com");
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getFileName()).isEqualTo("report.pdf");
+        assertThat(results.get(0).getOwnerEmail()).isEqualTo("alice@example.com");
+    }
+
     @Test
     void createShare_throwsForbidden_whenCallerIsNotOwner() {
         when(fileRepo.findById(10L)).thenReturn(Optional.of(file()));

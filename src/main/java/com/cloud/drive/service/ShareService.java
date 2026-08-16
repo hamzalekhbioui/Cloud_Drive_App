@@ -185,6 +185,7 @@ public class ShareService {
         r.setFileName(fileName);
         r.setOwnerEmail(s.getOwnerEmail());
         r.setPermission(s.getPermission());
+        r.setToken(s.getToken());
         r.setCreatedAt(s.getCreatedAt());
         r.setExpiresAt(s.getExpiresAt());
         if (file != null) {
