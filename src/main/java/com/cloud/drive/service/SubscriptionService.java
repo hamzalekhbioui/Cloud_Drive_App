@@ -48,7 +48,8 @@ public class SubscriptionService {
         Subscription probe = new Subscription();
         probe.setPlan(req.getPlan());
         long newLimit = probe.getPlanLimitBytes();
-        if (sub.getUsedBytes() > newLimit) {
+        long currentUsed = sub.getUsedBytes();
+        if (currentUsed > newLimit) {
             throw new ApiException(
                     "Cannot downgrade: current storage usage exceeds the " + req.getPlan() + " plan limit.",
                     HttpStatus.CONFLICT);
@@ -74,7 +75,8 @@ public class SubscriptionService {
         Subscription sub = subRepo.findForUpdate(userEmail)
                 .orElseGet(() -> createFree(userEmail));
         long limit = sub.getPlanLimitBytes();
-        if (sub.getUsedBytes() + additionalBytes > limit) {
+        long currentUsed = sub.getUsedBytes();
+        if (currentUsed + additionalBytes > limit) {
             throw new ApiException(
                     "Storage quota exceeded for the " + sub.getPlan() + " plan. Upgrade to upload more files.",
                     HttpStatus.PAYMENT_REQUIRED);
