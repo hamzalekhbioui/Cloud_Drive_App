@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { createShare, getSharesForFile, revokeShare, type ShareItem } from '../api/shares'
+import { createShare, getSharesForFile, revokeShare, revokeShareForFile, type ShareItem } from '../api/shares'
 import Icon from '../components/Icon'
 
 interface Props {
@@ -14,7 +14,11 @@ export default function ShareModal({ fileId, fileName, onClose }: Props) {
   const [tab, setTab] = useState<'user' | 'public'>('user')
   const [email, setEmail] = useState('')
   const [permission, setPermission] = useState<'VIEW' | 'DOWNLOAD'>('VIEW')
-  const [expiresAt, setExpiresAt] = useState('')
+  const [expiresAt, setExpiresAt] = useState(() => {
+    const d = new Date()
+    d.setDate(d.getDate() + 1)
+    return d.toISOString().split('T')[0]
+  })
   const [sharing, setSharing] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState<number | null>(null)
@@ -49,11 +53,19 @@ export default function ShareModal({ fileId, fileName, onClose }: Props) {
     try {
       await revokeShare(shareId)
       setShares((prev) => prev.filter((s) => s.id !== shareId))
-    } catch { setError('Failed to revoke share.') }
+    } catch {
+      // Fallback to revoke by file if needed (for one active share logic)
+      try {
+        await revokeShareForFile(fileId)
+        setShares([])
+      } catch {
+        setError('Failed to revoke share.')
+      }
+    }
   }
 
   function copyLink(share: ShareItem) {
-    const url = `${window.location.origin}/api/shares/public/${share.token}/stream`
+    const url = share.publicLink || `${window.location.origin}/public/${share.token}`
     navigator.clipboard.writeText(url)
     setCopied(share.id)
     setTimeout(() => setCopied(null), 2000)
@@ -71,6 +83,10 @@ export default function ShareModal({ fileId, fileName, onClose }: Props) {
           <div>
             <div style={{ fontWeight: 700, fontSize: 15 }}>Share file</div>
             <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 340 }}>{fileName}</div>
+            <div style={{ fontSize: 11, color: 'var(--accent)', marginTop: 4, fontWeight: 500 }}>
+              <Icon name="info" size={10} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+              Links expire automatically after 24 hours
+            </div>
           </div>
           <button className="icon-btn" onClick={onClose}><Icon name="close" size={16} /></button>
         </div>
@@ -120,9 +136,9 @@ export default function ShareModal({ fileId, fileName, onClose }: Props) {
               <input
                 type="date"
                 value={expiresAt}
-                onChange={(e) => setExpiresAt(e.target.value)}
-                min={new Date().toISOString().split('T')[0]}
-                style={{ height: 36, padding: '0 8px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-2)', color: 'var(--ink)', fontSize: 13 }}
+                disabled
+                title="Links expire in 1 day (fixed policy)"
+                style={{ height: 36, padding: '0 8px', borderRadius: 8, border: '1px solid var(--border)', background: 'var(--surface-3)', color: 'var(--ink-3)', fontSize: 13, cursor: 'not-allowed' }}
               />
               <button className="btn btn-accent" style={{ height: 36, flexShrink: 0 }} onClick={handleShare} disabled={sharing}>
                 {sharing ? '…' : tab === 'user' ? 'Share' : 'Generate link'}
@@ -158,7 +174,7 @@ export default function ShareModal({ fileId, fileName, onClose }: Props) {
                       <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '7px 10px', borderRadius: 8, background: 'var(--surface-2)' }}>
                         <Icon name="link" size={13} style={{ color: 'var(--ink-3)', flexShrink: 0 }} />
                         <span style={{ flex: 1, fontSize: 12, color: 'var(--ink-2)', fontFamily: 'var(--mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          /public/{s.token.substring(0, 8)}…
+                          /public/{s.token.substring(0, 12)}…
                         </span>
                         <span style={{ fontSize: 11, color: 'var(--ink-3)' }}>{s.permission}</span>
                         <button className="icon-btn" onClick={() => copyLink(s)} title="Copy link">

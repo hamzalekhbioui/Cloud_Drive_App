@@ -2,19 +2,22 @@ package com.cloud.drive.dto.share;
 
 import java.time.LocalDateTime;
 
-public class ShareResponse {
+/**
+ * Minimal DTO returned to recipients in the "shared-with-me" list.
+ * Intentionally omits the share token to prevent recipients from
+ * gaining unauthenticated public-stream access (bypassing permission checks).
+ */
+public class SharedFileResponse {
+
     private Long id;
     private Long fileId;
     private String fileName;
     private String ownerEmail;
-    private String sharedWithEmail;
-    private String token;
     private String permission;
+    private Long size;
+    private String type;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
-    private LocalDateTime revokedAt;
-    /** Populated when this is a file-shared-with-me response. */
-    private String publicLink;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -28,24 +31,18 @@ public class ShareResponse {
     public String getOwnerEmail() { return ownerEmail; }
     public void setOwnerEmail(String ownerEmail) { this.ownerEmail = ownerEmail; }
 
-    public String getSharedWithEmail() { return sharedWithEmail; }
-    public void setSharedWithEmail(String sharedWithEmail) { this.sharedWithEmail = sharedWithEmail; }
-
-    public String getToken() { return token; }
-    public void setToken(String token) { this.token = token; }
-
     public String getPermission() { return permission; }
     public void setPermission(String permission) { this.permission = permission; }
+
+    public Long getSize() { return size; }
+    public void setSize(Long size) { this.size = size; }
+
+    public String getType() { return type; }
+    public void setType(String type) { this.type = type; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     public LocalDateTime getExpiresAt() { return expiresAt; }
     public void setExpiresAt(LocalDateTime expiresAt) { this.expiresAt = expiresAt; }
-
-    public LocalDateTime getRevokedAt() { return revokedAt; }
-    public void setRevokedAt(LocalDateTime revokedAt) { this.revokedAt = revokedAt; }
-
-    public String getPublicLink() { return publicLink; }
-    public void setPublicLink(String publicLink) { this.publicLink = publicLink; }
 }

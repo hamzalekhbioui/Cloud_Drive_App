@@ -154,6 +154,9 @@ export default function AppShell() {
         </header>
         <div className="page">
           <Outlet />
+          <footer className="page-footer">
+            Built by Hamza
+          </footer>
         </div>
       </main>
     </div>

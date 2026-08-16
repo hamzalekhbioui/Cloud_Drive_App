@@ -1,9 +1,13 @@
 package com.cloud.drive.service;
 
 import com.cloud.drive.dto.FileResponseDto;
+import com.cloud.drive.dto.UploadTargetDto;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.repository.FileRepository;
+import com.cloud.drive.security.FilenamePolicy;
+import com.cloud.drive.storage.StorageService;
+import com.cloud.drive.util.MimePolicy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -13,6 +17,8 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -22,38 +28,111 @@ import java.util.stream.Collectors;
 public class FileService {
 
     private static final Logger log = LoggerFactory.getLogger(FileService.class);
+    private static final String STATUS_ACTIVE = "ACTIVE";
+    private static final String STATUS_PENDING = "PENDING";
+    private static final long SAS_UPLOAD_TTL_SECONDS = 600;
 
     private final BlobStorageService blobStorageService;
+    private final StorageService storageService;
     private final FileRepository fileRepository;
     private final SubscriptionService subscriptionService;
 
     public FileService(BlobStorageService blobStorageService,
+                       StorageService storageService,
                        FileRepository fileRepository,
                        SubscriptionService subscriptionService) {
         this.blobStorageService = blobStorageService;
+        this.storageService = storageService;
         this.fileRepository = fileRepository;
         this.subscriptionService = subscriptionService;
     }
 
+    // ── legacy multipart upload (retained for backward compatibility) ──────
+
+    /**
+     * @deprecated Use {@link #beginUpload} + client-side direct-to-Azure PUT + {@link #commitUpload} instead.
+     *             This method proxies the entire file body through the backend, wasting heap and bandwidth.
+     */
+    @Deprecated
     @Transactional
     public FileResponseDto uploadFile(MultipartFile file, String userId) throws IOException {
         subscriptionService.enforceStorageQuota(userId, file.getSize());
-        String originalFileName = file.getOriginalFilename();
-        String blobFileName = UUID.randomUUID().toString() + "-" + originalFileName;
 
-        String sasUrl = blobStorageService.uploadFile(file, blobFileName);
+        // sanitise + validate extension before accepting
+        String safeName = FilenamePolicy.sanitize(file.getOriginalFilename());
+        FilenamePolicy.extension(safeName);   // throws 400 if denied/unknown
+
+        String blobFileName = UUID.randomUUID().toString() + "-" + safeName;
+
+        // P2.1 — detect MIME from magic bytes, never trust client Content-Type
+        String detectedType = MimePolicy.detect(file.getInputStream(), safeName);
+
+        String sasUrl = blobStorageService.uploadFile(file, blobFileName, detectedType);
 
         FileEntity fileEntity = new FileEntity();
-        fileEntity.setOriginalFileName(originalFileName);
+        fileEntity.setOriginalFileName(safeName);
         fileEntity.setBlobFileName(blobFileName);
         fileEntity.setUrl(sasUrl);
         fileEntity.setSize(file.getSize());
-        fileEntity.setType(file.getContentType());
+        fileEntity.setType(detectedType);
         fileEntity.setUserId(userId);
         fileEntity.setCreatedAt(LocalDateTime.now());
+        fileEntity.setStatus(STATUS_ACTIVE);
 
         return mapToDto(fileRepository.save(fileEntity));
     }
+
+    // ── two-phase direct-to-storage upload ────────────────────────────────
+
+    /**
+     * Phase 1 — reserve quota, create a PENDING file record, and mint a short-lived
+     * write SAS URL the client can PUT to directly (bypassing the backend entirely).
+     */
+    @Transactional
+    public UploadTargetDto beginUpload(String userId, long declaredSize, String rawFileName) {
+        subscriptionService.reserveQuota(userId, declaredSize);
+
+        String safeName = FilenamePolicy.sanitize(rawFileName);
+        String ext = FilenamePolicy.extension(safeName);      // throws 400 if denied/unknown
+        String blobKey = userId + "/" + UUID.randomUUID() + ext;
+
+        String contentType = FilenamePolicy.contentTypeFor(ext);
+        // P2.1 — also validate against MimePolicy allow-list for defense-in-depth
+        MimePolicy.validateType(contentType);
+
+        String writeUrl = storageService.createUploadTarget(blobKey,
+                contentType, declaredSize, Duration.ofSeconds(SAS_UPLOAD_TTL_SECONDS));
+
+        FileEntity pending = new FileEntity();
+        pending.setUserId(userId);
+        pending.setOriginalFileName(safeName);
+        pending.setBlobFileName(blobKey);
+        pending.setSize(declaredSize);
+        pending.setType(contentType);
+        pending.setStatus(STATUS_PENDING);
+        pending.setCreatedAt(LocalDateTime.now());
+        fileRepository.save(pending);
+
+        return new UploadTargetDto(pending.getId(), writeUrl, blobKey, SAS_UPLOAD_TTL_SECONDS);
+    }
+
+    /**
+     * Phase 2 — client tells us it finished uploading; we verify the blob's actual
+     * size matches the declared size (anti-forgery) and finalize the record atomically.
+     */
+    @Transactional
+    public FileResponseDto commitUpload(Long fileId, String userId) {
+        FileEntity f = findOwned(fileId, userId);
+        if (!STATUS_PENDING.equals(f.getStatus())) {
+            throw new ApiException("Invalid commit — file is not in PENDING status", HttpStatus.CONFLICT);
+        }
+        storageService.assertLength(f.getBlobFileName(), f.getSize());
+        f.setStatus(STATUS_ACTIVE);
+        f.setUrl(storageService.createReadUrl(f.getBlobFileName(), false, Duration.ofMinutes(15)));
+        return mapToDto(fileRepository.save(f));
+    }
+
+    // ── file queries ──────────────────────────────────────────────────────
 
     public List<FileResponseDto> getFilesByUser(String userId) {
         return refreshAndMap(fileRepository.findByUserIdAndDeletedAtIsNull(userId));
@@ -75,6 +154,26 @@ public class FileService {
         blobStorageService.streamToOutput(file.getBlobFileName(), response.getOutputStream());
     }
 
+    /**
+     * Returns the file entity owned by the given user, for range-aware streaming.
+     */
+    public FileEntity findOwnedForStream(Long fileId, String userId) {
+        return findOwned(fileId, userId);
+    }
+
+    /**
+     * Stream bytes from the underlying storage to the given output, supporting byte-range.
+     *
+     * @param file  the file entity
+     * @param range two-element array [firstByte, lastByte] (inclusive), or {@code null} for the whole file
+     * @param out   the servlet output stream
+     */
+    public void stream(FileEntity file, long[] range, OutputStream out) {
+        storageService.streamTo(file.getBlobFileName(), range, out);
+    }
+
+    // ── mutators ──────────────────────────────────────────────────────────
+
     @Transactional
     public void deleteFile(Long fileId, String userId) {
         FileEntity file = findOwned(fileId, userId);
@@ -94,6 +193,10 @@ public class FileService {
         FileEntity file = findOwned(fileId, userId);
         blobStorageService.deleteFile(file.getBlobFileName());
         fileRepository.delete(file);
+        // Release quota so the usedBytes counter stays accurate
+        if (file.getSize() != null && file.getSize() > 0) {
+            subscriptionService.releaseQuota(userId, file.getSize());
+        }
     }
 
     @Transactional
@@ -102,6 +205,8 @@ public class FileService {
         file.setStarred(!file.isStarred());
         return mapToDto(fileRepository.save(file));
     }
+
+    // ── private helpers ────────────────────────────────────────────────────
 
     private FileEntity findOwned(Long fileId, String userId) {
         FileEntity file = fileRepository.findById(fileId)
@@ -113,17 +218,19 @@ public class FileService {
     }
 
     private List<FileResponseDto> refreshAndMap(List<FileEntity> entities) {
-        return entities.stream().map(entity -> {
-            FileResponseDto dto = mapToDto(entity);
-            if (entity.getBlobFileName() != null) {
-                try {
-                    dto.setUrl(blobStorageService.generateSasUrlForBlob(entity.getBlobFileName()));
-                } catch (Exception e) {
-                    log.warn("Failed to generate SAS URL for blob {}", entity.getBlobFileName(), e);
-                }
-            }
-            return dto;
-        }).collect(Collectors.toList());
+        return entities.stream()
+                .filter(e -> STATUS_ACTIVE.equals(e.getStatus()))
+                .map(entity -> {
+                    FileResponseDto dto = mapToDto(entity);
+                    if (entity.getBlobFileName() != null) {
+                        try {
+                            dto.setUrl(blobStorageService.generateSasUrlForBlob(entity.getBlobFileName()));
+                        } catch (Exception e) {
+                            log.warn("Failed to generate SAS URL for blob {}", entity.getBlobFileName(), e);
+                        }
+                    }
+                    return dto;
+                }).collect(Collectors.toList());
     }
 
     private FileResponseDto mapToDto(FileEntity entity) {
@@ -138,4 +245,7 @@ public class FileService {
         dto.setDeletedAt(entity.getDeletedAt());
         return dto;
     }
+
+    // sanitizeFileName(), extension(), contentTypeFor() have been replaced by
+    // FilenamePolicy — a centralised, security-hardened utility in the security package.
 }

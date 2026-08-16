@@ -366,6 +366,10 @@ export default function RegisterPage() {
                 <Link to="/login" className="gl-footer-link">Sign in</Link>
               </motion.p>
 
+              <motion.div variants={itemVariants} className="gl-hamza-footer">
+                Built by Hamza
+              </motion.div>
+
             </form>
           </motion.div>
         </motion.div>
