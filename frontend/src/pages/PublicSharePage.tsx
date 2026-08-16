@@ -52,7 +52,7 @@ export default function PublicSharePage() {
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex', flexDirection: 'column' }}>
       <header style={{ padding: '20px 28px', borderBottom: '1px solid var(--line)', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--surface)' }}>
-        <img src="/cloud_drive_app.png" alt="Vault" width="28" height="28" style={{ objectFit: 'contain' }} />
+        <img src="/cloude_logo.jpeg" alt="Vault" width="28" height="28" style={{ objectFit: 'contain' }} />
         <span style={{ fontWeight: 700, fontSize: 18, letterSpacing: '-0.02em' }}>Vault</span>
         <span style={{ color: 'var(--ink-4)', fontSize: 14 }}>/ Shared file</span>
       </header>
