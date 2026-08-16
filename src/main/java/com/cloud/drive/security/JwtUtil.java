@@ -23,6 +23,8 @@ public class JwtUtil {
     private static final String KNOWN_DEFAULT_PREFIX = "CloudDriveLocalSecret";
 
     private final String secret;
+    private final String secret;
+
     private final long expiration;
 
     public JwtUtil(@Value("${jwt.secret}") String secret,
@@ -53,6 +55,9 @@ public class JwtUtil {
                   + "Set a unique JWT_SECRET environment variable. Aborting startup.");
         }
         log.info("JWT secret validated (length={})", s.length());
+    }
+        this.secret = secret;
+        this.expiration = expiration;
     }
 
     private SecretKey signingKey() {

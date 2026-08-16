@@ -46,6 +46,15 @@ class SubscriptionServiceTest {
         sub.setUsedBytes(Subscription.FREE_BYTES - 1);
         when(subRepo.findForUpdate(EMAIL)).thenReturn(Optional.of(sub));
 
+    @BeforeEach
+    void setUp() {
+        when(subRepo.findByUserEmail(EMAIL)).thenReturn(Optional.of(subscription("FREE")));
+    }
+
+    @Test
+    void enforceStorageQuota_throwsPaymentRequired_whenUploadExceedsPlanLimit() {
+        when(fileRepo.sumSizeByUser(EMAIL)).thenReturn(Subscription.FREE_BYTES - 1);
+
         assertThatThrownBy(() -> subscriptionService.enforceStorageQuota(EMAIL, 2))
                 .isInstanceOf(ApiException.class)
                 .hasFieldOrPropertyWithValue("status", HttpStatus.PAYMENT_REQUIRED);
@@ -56,6 +65,8 @@ class SubscriptionServiceTest {
         Subscription current = subscription("BUSINESS");
         current.setUsedBytes(Subscription.FREE_BYTES + 1);
         when(subRepo.findByUserEmail(EMAIL)).thenReturn(Optional.of(current));
+        when(subRepo.findByUserEmail(EMAIL)).thenReturn(Optional.of(current));
+        when(fileRepo.sumSizeByUser(EMAIL)).thenReturn(Subscription.FREE_BYTES + 1);
 
         ChangePlanRequest req = new ChangePlanRequest();
         req.setPlan("FREE");

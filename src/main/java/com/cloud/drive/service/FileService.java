@@ -32,6 +32,7 @@ public class FileService {
     private static final String STATUS_PENDING = "PENDING";
     private static final long SAS_UPLOAD_TTL_SECONDS = 600;
 
+
     private final BlobStorageService blobStorageService;
     private final StorageService storageService;
     private final FileRepository fileRepository;
@@ -231,6 +232,17 @@ public class FileService {
                     }
                     return dto;
                 }).collect(Collectors.toList());
+        return entities.stream().map(entity -> {
+            FileResponseDto dto = mapToDto(entity);
+            if (entity.getBlobFileName() != null) {
+                try {
+                    dto.setUrl(blobStorageService.generateSasUrlForBlob(entity.getBlobFileName()));
+                } catch (Exception e) {
+                    log.warn("Failed to generate SAS URL for blob {}", entity.getBlobFileName(), e);
+                }
+            }
+            return dto;
+        }).collect(Collectors.toList());
     }
 
     private FileResponseDto mapToDto(FileEntity entity) {

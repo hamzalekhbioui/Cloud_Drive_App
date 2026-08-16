@@ -58,6 +58,14 @@ class ShareServiceTest {
         when(shareRepo.findByToken("token-revoked")).thenReturn(Optional.of(share));
 
         assertThatThrownBy(() -> shareService.resolvePublicToken("token-revoked"))
+    void resolvePublicToken_throwsGone_whenShareExpired() {
+        FileShare share = new FileShare();
+        share.setFileId(10L);
+        share.setToken("token-1");
+        share.setExpiresAt(LocalDateTime.now().minusMinutes(1));
+        when(shareRepo.findByToken("token-1")).thenReturn(Optional.of(share));
+
+        assertThatThrownBy(() -> shareService.resolvePublicToken("token-1"))
                 .isInstanceOf(ApiException.class)
                 .hasFieldOrPropertyWithValue("status", HttpStatus.GONE);
 
@@ -96,6 +104,7 @@ class ShareServiceTest {
     }
 
     @Test
+
     void createShare_throwsForbidden_whenCallerIsNotOwner() {
         when(fileRepo.findById(10L)).thenReturn(Optional.of(file()));
 
