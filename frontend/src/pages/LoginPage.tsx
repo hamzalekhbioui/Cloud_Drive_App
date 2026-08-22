@@ -215,33 +215,49 @@ export default function LoginPage() {
       <div className="gl-bg" />
       <div className="gl-bg-radial" />
       <div className="gl-grain" />
+      <div className="gl-grid" />
       <Blobs />
 
-      {/* Scrollable page — centers the card */}
+      {/* Split-screen page */}
       <div className="gl-page">
-        <motion.div
-          className="gl-card"
-          variants={cardVariants}
-          initial="hidden"
-          animate="show"
-        >
-          <motion.div variants={containerVariants} initial="hidden" animate="show">
+        {/* Left Hero Side */}
+        <div className="gl-side-hero">
+          <motion.div 
+            className="gl-side-content"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, ease: EASE }}
+          >
+            <h1 className="gl-side-title">Personal cloud storage for individuals.</h1>
+            <p className="gl-side-desc">
+              Vault is a secure, editorial-grade cloud storage designed for creators who value simplicity and speed.
+            </p>
+          </motion.div>
+        </div>
 
-            {/* Brand row */}
-            <motion.div variants={itemVariants} className="gl-brand-row">
-              <div className="gl-logo">
-                <img src="/cloude_logo.jpeg" alt="Vault" width="24" height="24" style={{ objectFit: 'contain' }} />
-              </div>
-              <span className="gl-wordmark">Vault</span>
-            </motion.div>
+        {/* Right Form Side */}
+        <div className="gl-main-side">
+          <div className="gl-card">
+            <motion.div
+              variants={cardVariants}
+              initial="hidden"
+              animate="show"
+            >
+              <motion.div variants={containerVariants} initial="hidden" animate="show">
 
-            {/* Headline */}
-            <motion.h1 variants={itemVariants} className="gl-headline">
-              Welcome back.
-            </motion.h1>
-            <motion.p variants={itemVariants} className="gl-subhead">
-              Sign in to your account to continue.
-            </motion.p>
+                {/* Brand row */}
+                <motion.div variants={itemVariants} className="gl-brand-row">
+                  <div className="gl-logo">V</div>
+                  <span className="gl-wordmark">Vault</span>
+                </motion.div>
+
+                {/* Headline */}
+                <motion.h1 variants={itemVariants} className="gl-headline">
+                  Welcome back
+                </motion.h1>
+                <motion.p variants={itemVariants} className="gl-subhead">
+                  Sign in to your account to continue.
+                </motion.p>
 
             {/* Submit error banner */}
             <AnimatePresence>
@@ -365,6 +381,8 @@ export default function LoginPage() {
           </motion.div>
         </motion.div>
       </div>
-    </>
+    </div>
+  </div>
+</>
   )
 }
