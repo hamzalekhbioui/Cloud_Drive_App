@@ -12,6 +12,7 @@ public class FileResponseDto {
     private boolean starred;
     private Long teamId;
     private LocalDateTime deletedAt;
+    private String userId;
 
     public FileResponseDto() {}
 
@@ -41,4 +42,7 @@ public class FileResponseDto {
 
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
+
+    public String getUserId() { return userId; }
+    public void setUserId(String userId) { this.userId = userId; }
 }

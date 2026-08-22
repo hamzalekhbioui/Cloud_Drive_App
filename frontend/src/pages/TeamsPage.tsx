@@ -360,7 +360,7 @@ export default function TeamsPage() {
                           {f.originalFileName}
                         </div>
                         <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>
-                          {formatBytes(f.size)} · {new Date(f.createdAt).toLocaleDateString()}
+                          {formatBytes(f.size)} · {new Date(f.createdAt).toLocaleDateString()} · by {f.userId === user?.email ? 'You' : f.userId.split('@')[0]}
                         </div>
                       </div>
                       <a href={f.url} target="_blank" rel="noreferrer" className="btn btn-accent" style={{ height: 28, padding: '0 12px', fontSize: 12 }}>

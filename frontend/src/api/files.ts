@@ -11,6 +11,7 @@ export interface FileItem {
   starred: boolean
   deletedAt: string | null
   status: 'ACTIVE' | 'PENDING'
+  userId: string
 }
 
 export interface UploadTarget {

@@ -268,6 +268,12 @@ public class FileService {
         if (!isOwner && !isTeamMember) {
             throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
         }
+        
+        // PENDING files should only be visible/committable by the owner who started the upload
+        if (STATUS_PENDING.equals(file.getStatus()) && !isOwner) {
+            throw new ApiException("File upload is still in progress", HttpStatus.FORBIDDEN);
+        }
+
         return file;
     }
 
@@ -279,7 +285,7 @@ public class FileService {
 
     private List<FileResponseDto> refreshAndMap(List<FileEntity> entities) {
         return entities.stream()
-                .filter(e -> STATUS_ACTIVE.equals(e.getStatus()))
+                .filter(e -> STATUS_ACTIVE.equals(e.getStatus()) || e.getStatus() == null)
                 .map(entity -> {
                     FileResponseDto dto = mapToDto(entity);
                     if (entity.getBlobFileName() != null) {
@@ -304,6 +310,7 @@ public class FileService {
         dto.setStarred(entity.isStarred());
         dto.setTeamId(entity.getTeamId());
         dto.setDeletedAt(entity.getDeletedAt());
+        dto.setUserId(entity.getUserId());
         return dto;
     }
 
