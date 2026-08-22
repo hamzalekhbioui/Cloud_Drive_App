@@ -2,19 +2,22 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getMyFiles, starFile, uploadFile } from '../api/files'
 import type { FileItem } from '../api/files'
+import { getOverview } from '../api/analytics'
+import type { Overview } from '../api/analytics'
 import { useAuth } from '../context/AuthContext'
 import Icon from '../components/Icon'
 import FileTile from '../components/FileTile'
 import FilePreviewModal from '../components/FilePreviewModal'
 import ShareModal from '../components/ShareModal'
 import {
-  formatBytes, fileKind, typeLabel, TYPE_COLORS, TOTAL_STORAGE_BYTES,
+  formatBytes, fileKind, typeLabel, TYPE_COLORS,
 } from '../utils/files'
 
 export default function DashboardPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [files, setFiles] = useState<FileItem[]>([])
+  const [overview, setOverview] = useState<Overview | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -25,7 +28,10 @@ export default function DashboardPage() {
   const dragCounter = useRef(0)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { fetchFiles() }, [])
+  useEffect(() => {
+    fetchFiles()
+    fetchOverview()
+  }, [])
 
   async function fetchFiles() {
     if (!user) { setLoading(false); return }
@@ -39,12 +45,23 @@ export default function DashboardPage() {
     }
   }
 
+  async function fetchOverview() {
+    if (!user) return
+    try {
+      const { data } = await getOverview()
+      setOverview(data)
+    } catch {
+      console.error('Failed to load storage overview.')
+    }
+  }
+
   async function doUpload(file: File) {
     if (!user) { navigate('/login'); return }
     setUploading(true); setUploadProgress(0); setError('')
     try {
       const data = await uploadFile(file, (pct) => setUploadProgress(pct))
       setFiles((prev) => [data, ...prev])
+      void fetchOverview()
     } catch (err: unknown) {
       const axiosErr = err as { response?: { data?: { message?: string } }; message?: string; request?: any }
       const msg = axiosErr?.response?.data?.message ?? axiosErr?.message ?? 'Upload failed.'
@@ -59,6 +76,15 @@ export default function DashboardPage() {
       const { data } = await starFile(id)
       setFiles((prev) => prev.map((f) => f.id === id ? data : f))
     } catch { setError('Failed to update star.') }
+  }
+
+  async function handleDelete(id: number) {
+    if (!confirm('Move this file to trash?')) return
+    try {
+      await deleteFile(id)
+      setFiles((prev) => prev.filter((f) => f.id !== id))
+      void fetchOverview()
+    } catch { setError('Failed to delete file.') }
   }
 
   useEffect(() => {
@@ -83,13 +109,23 @@ export default function DashboardPage() {
   }, [])
 
   const used = files.reduce((s, f) => s + f.size, 0)
-  const pct = (used / TOTAL_STORAGE_BYTES) * 100
   const recents = [...files].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6)
 
   const byKind: Record<string, number> = {}
   files.forEach((f) => { const k = fileKind(f.type); byKind[k] = (byKind[k] || 0) + f.size })
   const breakdown = Object.entries(byKind).map(([k, v]) => ({ kind: k as ReturnType<typeof fileKind>, size: v })).sort((a, b) => b.size - a.size).slice(0, 6)
   const breakdownTotal = breakdown.reduce((s, b) => s + b.size, 0) || 1
+
+  const displayUsed = overview ? overview.totalStorageUsed : used
+  const displayLimit = overview ? overview.totalStorageLimit : 1024 * 1024 * 1024 * 1024
+  const displayPct = overview ? overview.usagePercentage : (used / displayLimit) * 100
+
+  const planName = (() => {
+    if (!overview) return 'Business'
+    if (overview.totalStorageLimit <= 5 * 1024 ** 3) return 'Free'
+    if (overview.totalStorageLimit <= 50 * 1024 ** 3) return 'Pro'
+    return 'Business'
+  })()
 
   const greeting = (() => {
     const h = new Date().getHours()
@@ -128,14 +164,14 @@ export default function DashboardPage() {
           <div style={{ position: 'relative' }}>
             <div className="eyebrow">Storage in use</div>
             <div className="hero-num">
-              {(used / 1024 ** 3).toFixed(2)}<span className="unit">GB</span>
+              {formatBytes(displayUsed)}
             </div>
-            <div className="hero-of">of 1,024 GB on Business plan</div>
+            <div className="hero-of">of {formatBytes(displayLimit)} on {planName} plan</div>
           </div>
           <div style={{ position: 'relative' }}>
-            <div className="hero-bar"><div className="fill" style={{ width: `${pct}%` }} /></div>
+            <div className="hero-bar"><div className="fill" style={{ width: `${displayPct}%` }} /></div>
             <div className="hero-foot">
-              <div className="label">{pct.toFixed(2)}% utilized · {files.length} files total</div>
+              <div className="label">{displayPct.toFixed(2)}% utilized · {overview?.totalFiles ?? files.length} files total</div>
             </div>
           </div>
         </div>

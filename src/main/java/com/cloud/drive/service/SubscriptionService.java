@@ -137,7 +137,7 @@ public class SubscriptionService {
         List<Subscription> all = subRepo.findAll();
         int corrected = 0;
         for (Subscription sub : all) {
-            Long actual = fileRepo.sumSizeByUser(sub.getUserEmail());
+            Long actual = fileRepo.sumSizeByUserIncludingTrash(sub.getUserEmail());
             long actualBytes = actual != null ? actual : 0L;
             if (sub.getUsedBytes() != actualBytes) {
                 log.warn("Quota drift detected for {}: counter={} actual={}",

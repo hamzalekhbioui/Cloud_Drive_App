@@ -35,7 +35,7 @@ public class AnalyticsService {
     // ── Overview ──────────────────────────────────────────────────────────
 
     public OverviewDto getOverview(String userId) {
-        long used  = fileRepository.sumSizeByUser(userId);
+        long used  = fileRepository.sumSizeByUserIncludingTrash(userId);
         long storageLimit = subscriptionService.getStorageLimitBytes(userId);
         long files = fileRepository.countByUserIdAndDeletedAtIsNull(userId);
         double pct = storageLimit > 0 ? (used * 100.0) / storageLimit : 0;
@@ -119,7 +119,7 @@ public class AnalyticsService {
     public List<InsightDto> getInsights(String userId) {
         List<InsightDto> insights = new ArrayList<>();
 
-        long used  = fileRepository.sumSizeByUser(userId);
+        long used  = fileRepository.sumSizeByUserIncludingTrash(userId);
         long storageLimit = subscriptionService.getStorageLimitBytes(userId);
         long files = fileRepository.countByUserIdAndDeletedAtIsNull(userId);
 

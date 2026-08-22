@@ -17,26 +17,26 @@ export interface BreakdownItem {
 
 export interface LargestFile {
   id: number
-  name: string
+  fileName: string
   size: number
   type: string
-  createdAt: string
+  createdAt: string | null
 }
 
 export interface ActivityItem {
   date: string
-  totalUploadedSize: number
-  fileCount: number
+  size: number
+  count: number
 }
 
 export interface Insight {
-  type: 'info' | 'warning' | 'success' | 'tip'
+  type: 'info' | 'success' | 'warning' | 'tip'
+  title: string
   message: string
-  detail: string
 }
 
-export const getOverview     = () => client.get<Overview>('/analytics/overview')
-export const getBreakdown    = () => client.get<BreakdownItem[]>('/analytics/breakdown')
+export const getOverview = () => client.get<Overview>('/analytics/overview')
+export const getBreakdown = () => client.get<BreakdownItem[]>('/analytics/breakdown')
 export const getLargestFiles = () => client.get<LargestFile[]>('/analytics/largest-files')
-export const getActivity     = () => client.get<ActivityItem[]>('/analytics/activity')
-export const getInsights     = () => client.get<Insight[]>('/analytics/insights')
+export const getActivity = () => client.get<ActivityItem[]>('/analytics/activity')
+export const getInsights = () => client.get<Insight[]>('/analytics/insights')

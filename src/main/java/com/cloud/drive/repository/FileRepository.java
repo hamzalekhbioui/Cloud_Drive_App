@@ -24,6 +24,10 @@ public interface FileRepository extends JpaRepository<FileEntity, Long> {
     @Query("SELECT COALESCE(SUM(f.size), 0) FROM FileEntity f WHERE f.userId = :userId AND f.deletedAt IS NULL")
     Long sumSizeByUser(@Param("userId") String userId);
 
+    /** Total bytes used by all files (including trashed) for a user. */
+    @Query("SELECT COALESCE(SUM(f.size), 0) FROM FileEntity f WHERE f.userId = :userId")
+    Long sumSizeByUserIncludingTrash(@Param("userId") String userId);
+
     /** Count of active files for a user. */
     long countByUserIdAndDeletedAtIsNull(String userId);
 

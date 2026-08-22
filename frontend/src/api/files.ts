@@ -10,6 +10,7 @@ export interface FileItem {
   createdAt: string
   starred: boolean
   deletedAt: string | null
+  status: 'ACTIVE' | 'PENDING'
 }
 
 export interface UploadTarget {

@@ -18,21 +18,22 @@ import java.util.UUID;
 @Service
 public class SettingsService {
 
-    private static final long STORAGE_LIMIT = 1024L * 1024 * 1024 * 1024; // 1 TB
-
     private final UserRepository           userRepository;
     private final UserSettingsRepository   userSettingsRepository;
     private final FileRepository           fileRepository;
     private final PasswordEncoder          passwordEncoder;
+    private final SubscriptionService      subscriptionService;
 
     public SettingsService(UserRepository userRepository,
                            UserSettingsRepository userSettingsRepository,
                            FileRepository fileRepository,
-                           PasswordEncoder passwordEncoder) {
+                           PasswordEncoder passwordEncoder,
+                           SubscriptionService subscriptionService) {
         this.userRepository         = userRepository;
         this.userSettingsRepository = userSettingsRepository;
         this.fileRepository         = fileRepository;
         this.passwordEncoder        = passwordEncoder;
+        this.subscriptionService    = subscriptionService;
     }
 
     // ── GET /api/settings ────────────────────────────────────────────────────
@@ -41,9 +42,10 @@ public class SettingsService {
         User         user = findUser(userId);
         UserSettings prefs = getOrCreateSettings(userId);
 
-        long used  = fileRepository.sumSizeByUser(userId);
+        long used  = fileRepository.sumSizeByUserIncludingTrash(userId);
         long files = fileRepository.countByUserIdAndDeletedAtIsNull(userId);
-        double pct = STORAGE_LIMIT > 0 ? (used * 100.0) / STORAGE_LIMIT : 0;
+        long limit = subscriptionService.getStorageLimitBytes(userId);
+        double pct = limit > 0 ? (used * 100.0) / limit : 0;
 
         SettingsResponse r = new SettingsResponse();
 
@@ -56,7 +58,7 @@ public class SettingsService {
 
         // Storage
         r.setStorageUsed(used);
-        r.setStorageTotal(STORAGE_LIMIT);
+        r.setStorageTotal(limit);
         r.setStoragePercentage(pct);
         r.setTotalFiles(files);
 
