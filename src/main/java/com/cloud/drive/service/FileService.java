@@ -5,6 +5,7 @@ import com.cloud.drive.dto.UploadTargetDto;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.repository.FileRepository;
+import com.cloud.drive.repository.TeamMemberRepository;
 import com.cloud.drive.security.FilenamePolicy;
 import com.cloud.drive.storage.StorageService;
 import com.cloud.drive.util.MimePolicy;
@@ -35,15 +36,18 @@ public class FileService {
     private final BlobStorageService blobStorageService;
     private final StorageService storageService;
     private final FileRepository fileRepository;
+    private final TeamMemberRepository teamMemberRepository;
     private final SubscriptionService subscriptionService;
 
     public FileService(BlobStorageService blobStorageService,
                        StorageService storageService,
                        FileRepository fileRepository,
+                       TeamMemberRepository teamMemberRepository,
                        SubscriptionService subscriptionService) {
         this.blobStorageService = blobStorageService;
         this.storageService = storageService;
         this.fileRepository = fileRepository;
+        this.teamMemberRepository = teamMemberRepository;
         this.subscriptionService = subscriptionService;
     }
 
@@ -82,6 +86,37 @@ public class FileService {
         return mapToDto(fileRepository.save(fileEntity));
     }
 
+    @Transactional
+    public FileResponseDto uploadFile(MultipartFile file, String userId, Long teamId) throws Exception {
+        if (teamId != null) {
+            requireTeamMembership(teamId, userId);
+        }
+        
+        subscriptionService.reserveQuota(userId, file.getSize());
+
+        String safeName = FilenamePolicy.sanitize(file.getOriginalFilename());
+        String ext = FilenamePolicy.extension(safeName);
+        String blobFileName = userId + "/" + UUID.randomUUID() + ext;
+
+        // P2.1 — detect MIME from magic bytes, never trust client Content-Type
+        String detectedType = MimePolicy.detect(file.getInputStream(), safeName);
+
+        String sasUrl = blobStorageService.uploadFile(file, blobFileName, detectedType);
+
+        FileEntity fileEntity = new FileEntity();
+        fileEntity.setOriginalFileName(safeName);
+        fileEntity.setBlobFileName(blobFileName);
+        fileEntity.setUrl(sasUrl);
+        fileEntity.setSize(file.getSize());
+        fileEntity.setType(detectedType);
+        fileEntity.setUserId(userId);
+        fileEntity.setTeamId(teamId);
+        fileEntity.setCreatedAt(LocalDateTime.now());
+        fileEntity.setStatus(STATUS_ACTIVE);
+
+        return mapToDto(fileRepository.save(fileEntity));
+    }
+
     // ── two-phase direct-to-storage upload ────────────────────────────────
 
     /**
@@ -89,7 +124,11 @@ public class FileService {
      * write SAS URL the client can PUT to directly (bypassing the backend entirely).
      */
     @Transactional
-    public UploadTargetDto beginUpload(String userId, long declaredSize, String rawFileName) {
+    public UploadTargetDto beginUpload(String userId, long declaredSize, String rawFileName, Long teamId) {
+        if (teamId != null) {
+            requireTeamMembership(teamId, userId);
+        }
+        
         subscriptionService.reserveQuota(userId, declaredSize);
 
         String safeName = FilenamePolicy.sanitize(rawFileName);
@@ -105,6 +144,7 @@ public class FileService {
 
         FileEntity pending = new FileEntity();
         pending.setUserId(userId);
+        pending.setTeamId(teamId);
         pending.setOriginalFileName(safeName);
         pending.setBlobFileName(blobKey);
         pending.setSize(declaredSize);
@@ -144,6 +184,11 @@ public class FileService {
 
     public List<FileResponseDto> getTrashFiles(String userId) {
         return refreshAndMap(fileRepository.findByUserIdAndDeletedAtIsNotNull(userId));
+    }
+
+    public List<FileResponseDto> getTeamFiles(Long teamId, String userId) {
+        requireTeamMembership(teamId, userId);
+        return refreshAndMap(fileRepository.findByTeamIdAndDeletedAtIsNull(teamId));
     }
 
     public void streamFile(Long fileId, String userId, HttpServletResponse response) throws IOException {
@@ -211,10 +256,25 @@ public class FileService {
     private FileEntity findOwned(Long fileId, String userId) {
         FileEntity file = fileRepository.findById(fileId)
                 .orElseThrow(() -> new ApiException("File not found", HttpStatus.NOT_FOUND));
-        if (!file.getUserId().equals(userId)) {
+        
+        boolean isOwner = file.getUserId().equals(userId);
+        boolean isTeamMember = false;
+        if (file.getTeamId() != null) {
+            isTeamMember = teamMemberRepository.findByTeamIdAndUserEmail(file.getTeamId(), userId)
+                    .map(m -> "ACTIVE".equals(m.getStatus()))
+                    .orElse(false);
+        }
+
+        if (!isOwner && !isTeamMember) {
             throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
         }
         return file;
+    }
+
+    private void requireTeamMembership(Long teamId, String userId) {
+        teamMemberRepository.findByTeamIdAndUserEmail(teamId, userId)
+                .filter(m -> "ACTIVE".equals(m.getStatus()))
+                .orElseThrow(() -> new ApiException("Not a member of this team", HttpStatus.FORBIDDEN));
     }
 
     private List<FileResponseDto> refreshAndMap(List<FileEntity> entities) {
@@ -242,6 +302,7 @@ public class FileService {
         dto.setType(entity.getType());
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setStarred(entity.isStarred());
+        dto.setTeamId(entity.getTeamId());
         dto.setDeletedAt(entity.getDeletedAt());
         return dto;
     }

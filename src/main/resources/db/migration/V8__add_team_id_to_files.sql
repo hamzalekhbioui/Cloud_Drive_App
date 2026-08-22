@@ -1,0 +1,1 @@
+ALTER TABLE files ADD COLUMN team_id BIGINT;

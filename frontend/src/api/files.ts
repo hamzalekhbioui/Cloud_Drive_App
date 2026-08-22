@@ -23,6 +23,7 @@ export interface UploadTarget {
 export const getMyFiles = () => client.get<FileItem[]>('/files/me')
 export const getStarredFiles = () => client.get<FileItem[]>('/files/starred')
 export const getTrashFiles = () => client.get<FileItem[]>('/files/trash')
+export const getTeamFiles = (teamId: number) => client.get<FileItem[]>(`/files/team/${teamId}`)
 
 export const deleteFile = (fileId: number) => client.delete(`/files/${fileId}`)
 export const restoreFile = (fileId: number) => client.post(`/files/${fileId}/restore`)
@@ -32,19 +33,22 @@ export const starFile = (fileId: number) => client.patch<FileItem>(`/files/${fil
 // ── two-phase direct-to-Azure upload ──────────────────────────────────────
 
 /** Phase 1: ask the backend to mint a short-lived write SAS URL. */
-const requestUploadTarget = (file: File) =>
+const requestUploadTarget = (file: File, teamId?: number) =>
   client.post<UploadTarget>('/files/upload/begin', {
     size: file.size,
     rawFileName: file.name,
+    teamId
   })
 
 /** Legacy upload via backend proxy (multipart). */
 export const uploadMultipart = async (
   file: File,
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
+  teamId?: number
 ): Promise<FileItem> => {
   const formData = new FormData()
   formData.append('file', file)
+  if (teamId) formData.append('teamId', teamId.toString())
   const { data } = await client.post<FileItem>('/files/upload', formData, {
     onUploadProgress: (e) => {
       if (onProgress && e.total) onProgress(Math.round((e.loaded * 100) / e.total))
@@ -59,10 +63,11 @@ export const uploadMultipart = async (
  */
 export const uploadFile = async (
   file: File,
-  onProgress?: (pct: number) => void
+  onProgress?: (pct: number) => void,
+  teamId?: number
 ): Promise<FileItem> => {
   try {
-    const { data: target } = await requestUploadTarget(file)
+    const { data: target } = await requestUploadTarget(file, teamId)
 
     await axios.put(target.writeUrl, file, {
       headers: {
@@ -84,7 +89,7 @@ export const uploadFile = async (
 
     if (isNetworkOrCorsError || isAzureError) {
       console.warn('Direct upload failed (possibly CORS). Falling back to multipart proxy upload.', err)
-      return uploadMultipart(file, onProgress)
+      return uploadMultipart(file, onProgress, teamId)
     }
     throw err
   }

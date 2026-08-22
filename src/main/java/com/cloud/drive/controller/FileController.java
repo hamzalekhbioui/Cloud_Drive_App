@@ -40,8 +40,9 @@ public class FileController {
     @PostMapping("/upload")
     public ResponseEntity<FileResponseDto> uploadFile(
             @RequestParam("file") MultipartFile file,
+            @RequestParam(value = "teamId", required = false) Long teamId,
             @AuthenticationPrincipal UserDetails userDetails) throws Exception {
-        return new ResponseEntity<>(fileService.uploadFile(file, userDetails.getUsername()), HttpStatus.CREATED);
+        return new ResponseEntity<>(fileService.uploadFile(file, userDetails.getUsername(), teamId), HttpStatus.CREATED);
     }
 
     // ── two-phase direct-to-storage upload ────────────────────────────────
@@ -53,7 +54,11 @@ public class FileController {
             @AuthenticationPrincipal UserDetails userDetails) {
         long size = ((Number) body.get("size")).longValue();
         String rawFileName = (String) body.get("rawFileName");
-        return ResponseEntity.ok(fileService.beginUpload(userDetails.getUsername(), size, rawFileName));
+        Long teamId = body.containsKey("teamId") ? ((Number) body.get("teamId")).longValue() : null;
+        
+        // If teamId is provided, we should ideally verify membership here too, 
+        // but FileService.beginUpload will need to handle it.
+        return ResponseEntity.ok(fileService.beginUpload(userDetails.getUsername(), size, rawFileName, teamId));
     }
 
     /** Phase 2 — client confirms upload; backend verifies blob and finalizes record. */
@@ -82,6 +87,13 @@ public class FileController {
     public ResponseEntity<List<FileResponseDto>> getTrashFiles(
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(fileService.getTrashFiles(userDetails.getUsername()));
+    }
+
+    @GetMapping("/team/{teamId}")
+    public ResponseEntity<List<FileResponseDto>> getTeamFiles(
+            @PathVariable Long teamId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(fileService.getTeamFiles(teamId, userDetails.getUsername()));
     }
 
     /**

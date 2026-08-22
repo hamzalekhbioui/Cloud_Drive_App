@@ -4,15 +4,20 @@ import {
   acceptInvite, getPendingInvites,
   type Team, type TeamMember,
 } from '../api/teams'
+import { getTeamFiles, uploadFile, type FileItem } from '../api/files'
 import { useAuth } from '../context/AuthContext'
 import Icon from '../components/Icon'
+import { formatBytes } from '../utils/files'
 
 export default function TeamsPage() {
   const { user } = useAuth()
   const [teams, setTeams] = useState<Team[]>([])
   const [pending, setPending] = useState<TeamMember[]>([])
   const [selected, setSelected] = useState<Team | null>(null)
+  const [teamFiles, setTeamFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadingFiles, setLoadingFiles] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
   const [showCreate, setShowCreate] = useState(false)
   const [newTeamName, setNewTeamName] = useState('')
@@ -22,6 +27,14 @@ export default function TeamsPage() {
   const [creating, setCreating] = useState(false)
 
   useEffect(() => { load() }, [])
+
+  useEffect(() => {
+    if (selected) {
+      loadTeamFiles(selected.id)
+    } else {
+      setTeamFiles([])
+    }
+  }, [selected])
 
   async function load() {
     setLoading(true)
@@ -34,6 +47,32 @@ export default function TeamsPage() {
       setError('Failed to load teams.')
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function loadTeamFiles(teamId: number) {
+    setLoadingFiles(true)
+    try {
+      const { data } = await getTeamFiles(teamId)
+      setTeamFiles(data)
+    } catch {
+      setError('Failed to load team files.')
+    } finally {
+      setLoadingFiles(false)
+    }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file || !selected) return
+    setUploading(true)
+    try {
+      const newFile = await uploadFile(file, undefined, selected.id)
+      setTeamFiles((prev) => [newFile, ...prev])
+    } catch {
+      setError('Upload failed.')
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -111,15 +150,65 @@ export default function TeamsPage() {
 
       {/* Pending invites banner */}
       {pending.length > 0 && (
-        <div style={{ marginBottom: 24, padding: 16, borderRadius: 12, background: 'color-mix(in oklab, var(--accent) 10%, var(--surface))', border: '1px solid color-mix(in oklab, var(--accent) 30%, var(--border))' }}>
-          <div style={{ fontWeight: 600, marginBottom: 10, fontSize: 13 }}>Pending invites ({pending.length})</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+        <div style={{
+          marginBottom: 32,
+          padding: 24,
+          borderRadius: 16,
+          background: 'var(--ink)',
+          color: 'var(--bg)',
+          boxShadow: '0 20px 40px -10px color-mix(in oklab, var(--ink) 30%, transparent)',
+          position: 'relative',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            position: 'absolute',
+            top: -20, right: -20,
+            width: 100, height: 100,
+            background: 'var(--accent)',
+            filter: 'blur(40px)',
+            opacity: 0.3
+          }} />
+          <div style={{
+            fontSize: 11,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            fontWeight: 700,
+            opacity: 0.6,
+            marginBottom: 12,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6
+          }}>
+            <Icon name="mail" size={12} /> Pending Invitations
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {pending.map((inv) => (
-              <div key={inv.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-                <span style={{ fontSize: 13 }}>Team invite as <strong>{inv.role}</strong></span>
-                <button className="btn btn-accent" style={{ height: 28, fontSize: 12 }} onClick={() => handleAccept(inv.inviteToken!)}>
-                  Accept
-                </button>
+              <div key={inv.id} style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                borderRadius: 12,
+                background: 'rgba(255,255,255,0.05)',
+                border: '1px solid rgba(255,255,255,0.1)'
+              }}>
+                <div>
+                  <div style={{ fontSize: 15, fontWeight: 500 }}>
+                    You've been invited to a team
+                  </div>
+                  <div style={{ fontSize: 13, opacity: 0.6, marginTop: 2 }}>
+                    Role: <span style={{ textTransform: 'capitalize' }}>{inv.role.toLowerCase()}</span>
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn btn-accent"
+                    style={{ height: 36, padding: '0 20px', fontSize: 13 }}
+                    onClick={() => handleAccept(inv.inviteToken!)}
+                  >
+                    Accept
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -194,7 +283,8 @@ export default function TeamsPage() {
               )}
 
               {/* Members list */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 12, color: 'var(--ink-3)' }}>Members</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 32 }}>
                 {selected.members.map((m) => (
                   <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 8, background: 'var(--surface)' }}>
                     <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--accent)', display: 'grid', placeItems: 'center', color: '#fff', fontWeight: 700, fontSize: 13 }}>
@@ -212,6 +302,47 @@ export default function TeamsPage() {
                   </div>
                 ))}
               </div>
+
+              {/* Team Files section */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+                <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink-3)' }}>Shared Files</div>
+                <label className="btn btn-accent" style={{ height: 28, fontSize: 12, cursor: 'pointer' }}>
+                  <Icon name="plus" size={12} /> Upload to Team
+                  <input type="file" style={{ display: 'none' }} onChange={handleFileUpload} disabled={uploading} />
+                </label>
+              </div>
+
+              {loadingFiles ? (
+                <div style={{ padding: '20px 0', textAlign: 'center', fontSize: 13, color: 'var(--ink-4)' }}>Loading files…</div>
+              ) : teamFiles.length === 0 ? (
+                <div style={{ padding: '40px 0', textAlign: 'center', fontSize: 13, color: 'var(--ink-4)', background: 'var(--surface)', borderRadius: 10, border: '1px dashed var(--border)' }}>
+                  No files shared with this team yet.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                  {teamFiles.map((f) => (
+                    <div key={f.id} style={{
+                      display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px',
+                      borderRadius: 8, border: '1px solid transparent', transition: 'all 0.2s'
+                    }} className="hover-reveal">
+                      <div style={{ width: 32, height: 32, borderRadius: 6, background: 'var(--surface-3)', display: 'grid', placeItems: 'center', color: 'var(--ink-3)' }}>
+                        <Icon name="file" size={16} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {f.originalFileName}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--ink-4)' }}>
+                          {formatBytes(f.size)} · {new Date(f.createdAt).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <a href={f.url} target="_blank" rel="noreferrer" className="btn btn-accent" style={{ height: 28, padding: '0 12px', fontSize: 12 }}>
+                        View
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

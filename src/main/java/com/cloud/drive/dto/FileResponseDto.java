@@ -10,6 +10,7 @@ public class FileResponseDto {
     private String type;
     private LocalDateTime createdAt;
     private boolean starred;
+    private Long teamId;
     private LocalDateTime deletedAt;
 
     public FileResponseDto() {}
@@ -34,6 +35,9 @@ public class FileResponseDto {
 
     public boolean isStarred() { return starred; }
     public void setStarred(boolean starred) { this.starred = starred; }
+
+    public Long getTeamId() { return teamId; }
+    public void setTeamId(Long teamId) { this.teamId = teamId; }
 
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
