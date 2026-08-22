@@ -36,6 +36,9 @@ export const inviteMember = (teamId: number, email: string, role: string = 'MEMB
 export const acceptInvite = (inviteToken: string) =>
   client.post(`/teams/invites/${inviteToken}/accept`)
 
+export const declineInvite = (inviteToken: string) =>
+  client.post(`/teams/invites/${inviteToken}/decline`)
+
 export const removeMember = (teamId: number, memberId: number) =>
   client.delete(`/teams/${teamId}/members/${memberId}`)
 

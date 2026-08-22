@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   getMyTeams, createTeam, inviteMember, removeMember, deleteTeam,
-  acceptInvite, getPendingInvites,
+  acceptInvite, declineInvite, getPendingInvites,
   type Team, type TeamMember,
 } from '../api/teams'
 import { getTeamFiles, uploadFile, type FileItem } from '../api/files'
@@ -127,6 +127,13 @@ export default function TeamsPage() {
     } catch { setError('Failed to accept invite.') }
   }
 
+  async function handleDecline(inviteToken: string) {
+    try {
+      await declineInvite(inviteToken)
+      await load()
+    } catch { setError('Failed to decline invite.') }
+  }
+
   if (loading) return <div className="page-inner"><div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-3)' }}>Loading…</div></div>
 
   return (
@@ -208,6 +215,13 @@ export default function TeamsPage() {
                   >
                     Accept
                   </button>
+                  <button
+                    className="btn"
+                    style={{ height: 36, padding: '0 20px', fontSize: 13, background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none' }}
+                    onClick={() => handleDecline(inv.inviteToken!)}
+                  >
+                    Decline
+                  </button>
                 </div>
               </div>
             ))}
@@ -225,19 +239,32 @@ export default function TeamsPage() {
           {/* Team list sidebar */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
             {teams.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setSelected(t)}
-                style={{
-                  textAlign: 'left', padding: '10px 12px', borderRadius: 10,
-                  background: selected?.id === t.id ? 'var(--surface-3)' : 'transparent',
-                  border: selected?.id === t.id ? '1px solid var(--border)' : '1px solid transparent',
-                  cursor: 'pointer', color: 'var(--ink)',
-                }}
-              >
-                <div style={{ fontWeight: 600, fontSize: 14 }}>{t.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>{t.memberCount} members · {t.callerRole}</div>
-              </button>
+              <div key={t.id} style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <button
+                  onClick={() => setSelected(t)}
+                  style={{
+                    textAlign: 'left', padding: '10px 12px', borderRadius: 10,
+                    background: selected?.id === t.id ? 'var(--surface-3)' : 'transparent',
+                    border: selected?.id === t.id ? '1px solid var(--border)' : '1px solid transparent',
+                    cursor: 'pointer', color: 'var(--ink)',
+                  }}
+                >
+                  <div style={{ fontWeight: 600, fontSize: 14 }}>{t.name}</div>
+                  <div style={{ fontSize: 12, color: 'var(--ink-3)', marginTop: 2 }}>{t.memberCount} members · {t.callerRole}</div>
+                </button>
+                {selected?.id === t.id && (
+                  <div style={{ padding: '4px 12px 12px 24px', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {t.members.filter(m => m.status === 'ACTIVE').map(m => (
+                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--ink-2)' }}>
+                        <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', opacity: 0.6 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {m.userEmail === user?.email ? 'You' : m.userEmail.split('@')[0]}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
 

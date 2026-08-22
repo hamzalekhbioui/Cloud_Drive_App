@@ -57,6 +57,14 @@ public class TeamController {
         teamService.acceptInvite(inviteToken, ud.getUsername());
     }
 
+    @PostMapping("/invites/{inviteToken}/decline")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void declineInvite(
+            @PathVariable String inviteToken,
+            @AuthenticationPrincipal UserDetails ud) {
+        teamService.declineInvite(inviteToken, ud.getUsername());
+    }
+
     @DeleteMapping("/{teamId}/members/{memberId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void removeMember(

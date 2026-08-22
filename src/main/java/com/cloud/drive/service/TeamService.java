@@ -109,6 +109,16 @@ public class TeamService {
     }
 
     @Transactional
+    public void declineInvite(String inviteToken, String userEmail) {
+        TeamMember member = memberRepo.findByInviteToken(inviteToken)
+                .orElseThrow(() -> new ApiException("Invalid invite token", HttpStatus.NOT_FOUND));
+        if (!member.getUserEmail().equals(userEmail)) {
+            throw new ApiException("This invite was sent to a different email address", HttpStatus.FORBIDDEN);
+        }
+        memberRepo.delete(member);
+    }
+
+    @Transactional
     public void removeMember(Long teamId, Long memberId, String callerEmail) {
         TeamMember target = memberRepo.findById(memberId)
                 .orElseThrow(() -> new ApiException("Member not found", HttpStatus.NOT_FOUND));
