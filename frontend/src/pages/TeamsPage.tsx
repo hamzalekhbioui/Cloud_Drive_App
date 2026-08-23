@@ -27,6 +27,7 @@ export default function TeamsPage() {
   const [inviting, setInviting] = useState(false)
   const [creating, setCreating] = useState(false)
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
+  const [teamPendingDelete, setTeamPendingDelete] = useState<Team | null>(null)
 
   useEffect(() => { load() }, [])
 
@@ -113,12 +114,12 @@ export default function TeamsPage() {
   }
 
   async function handleDelete(teamId: number) {
-    if (!confirm('Delete this team? This cannot be undone.')) return
     try {
       await deleteTeam(teamId)
       const next = teams.filter((t) => t.id !== teamId)
       setTeams(next)
       setSelected(next[0] ?? null)
+      setTeamPendingDelete(null)
     } catch { setError('Failed to delete team.') }
   }
 
@@ -281,7 +282,11 @@ export default function TeamsPage() {
                   </div>
                 </div>
                 {selected.ownerEmail === user?.email && (
-                  <button className="btn" style={{ height: 30, fontSize: 12, color: 'var(--danger)' }} onClick={() => handleDelete(selected.id)}>
+                  <button
+                    className="btn"
+                    style={{ height: 30, fontSize: 12, color: 'var(--danger)' }}
+                    onClick={() => setTeamPendingDelete(selected)}
+                  >
                     <Icon name="trash" size={13} /> Delete team
                   </button>
                 )}
@@ -396,6 +401,41 @@ export default function TeamsPage() {
           file={previewFile}
           onClose={() => setPreviewFile(null)}
         />
+      )}
+
+      {teamPendingDelete && (
+        <div className="modal-backdrop" onClick={() => setTeamPendingDelete(null)}>
+          <div
+            className="modal"
+            style={{ maxWidth: 460 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-head">
+              <h2 className="modal-title" style={{ fontSize: 22 }}>Delete team?</h2>
+              <button className="icon-btn" onClick={() => setTeamPendingDelete(null)} aria-label="Close">
+                <Icon name="close" size={16} />
+              </button>
+            </div>
+            <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ fontSize: 14, color: 'var(--ink-2)', lineHeight: 1.6 }}>
+                You are about to permanently delete
+                {' '}
+                <strong style={{ color: 'var(--ink)' }}>{teamPendingDelete.name}</strong>.
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--danger)', lineHeight: 1.6 }}>
+                This action cannot be undone.
+              </div>
+            </div>
+            <div className="modal-foot" style={{ justifyContent: 'flex-end' }}>
+              <button className="btn" onClick={() => setTeamPendingDelete(null)}>
+                Cancel
+              </button>
+              <button className="btn btn-danger" onClick={() => handleDelete(teamPendingDelete.id)}>
+                <Icon name="trash" size={14} /> Delete team
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Create team modal */}
