@@ -188,7 +188,7 @@ public class FileService {
 
     public List<FileResponseDto> getTeamFiles(Long teamId, String userId) {
         requireTeamMembership(teamId, userId);
-        return refreshAndMap(fileRepository.findByTeamIdAndDeletedAtIsNull(teamId));
+        return refreshAndMap(fileRepository.findActiveByTeamId(teamId));
     }
 
     public void streamFile(Long fileId, String userId, HttpServletResponse response) throws IOException {
@@ -269,9 +269,18 @@ public class FileService {
             throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
         }
         
-        // PENDING files should only be visible/committable by the owner who started the upload
+        // PENDING files should only be visible/committable by the owner or team admins
         if (STATUS_PENDING.equals(file.getStatus()) && !isOwner) {
-            throw new ApiException("File upload is still in progress", HttpStatus.FORBIDDEN);
+            // Check if user is a team admin if it's a team file
+            boolean isTeamAdmin = false;
+            if (file.getTeamId() != null) {
+                isTeamAdmin = teamMemberRepository.findByTeamIdAndUserEmail(file.getTeamId(), userId)
+                        .map(m -> "ACTIVE".equals(m.getStatus()) && "ADMIN".equals(m.getRole()))
+                        .orElse(false);
+            }
+            if (!isTeamAdmin) {
+                throw new ApiException("File upload is still in progress", HttpStatus.FORBIDDEN);
+            }
         }
 
         return file;

@@ -8,6 +8,7 @@ import { getTeamFiles, uploadFile, type FileItem } from '../api/files'
 import { useAuth } from '../context/AuthContext'
 import Icon from '../components/Icon'
 import { formatBytes } from '../utils/files'
+import FilePreviewModal from '../components/FilePreviewModal'
 
 export default function TeamsPage() {
   const { user } = useAuth()
@@ -25,6 +26,7 @@ export default function TeamsPage() {
   const [inviteRole, setInviteRole] = useState<'MEMBER' | 'ADMIN'>('MEMBER')
   const [inviting, setInviting] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
 
   useEffect(() => { load() }, [])
 
@@ -353,7 +355,7 @@ export default function TeamsPage() {
                       borderRadius: 8, border: '1px solid transparent', transition: 'all 0.2s'
                     }} className="hover-reveal">
                       <div style={{ width: 32, height: 32, borderRadius: 6, background: 'var(--surface-3)', display: 'grid', placeItems: 'center', color: 'var(--ink-3)' }}>
-                        <Icon name="file" size={16} />
+                        <Icon name="files" size={16} />
                       </div>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -363,8 +365,22 @@ export default function TeamsPage() {
                           {formatBytes(f.size)} · {new Date(f.createdAt).toLocaleDateString()} · by {f.userId === user?.email ? 'You' : f.userId.split('@')[0]}
                         </div>
                       </div>
-                      <a href={f.url} target="_blank" rel="noreferrer" className="btn btn-accent" style={{ height: 28, padding: '0 12px', fontSize: 12 }}>
+                      <button
+                        type="button"
+                        className="btn btn-accent"
+                        style={{ height: 28, padding: '0 12px', fontSize: 12 }}
+                        onClick={() => setPreviewFile(f)}
+                      >
                         View
+                      </button>
+                      <a
+                        href={f.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn"
+                        style={{ height: 28, padding: '0 12px', fontSize: 12 }}
+                      >
+                        Download
                       </a>
                     </div>
                   ))}
@@ -373,6 +389,13 @@ export default function TeamsPage() {
             </div>
           )}
         </div>
+      )}
+
+      {previewFile && (
+        <FilePreviewModal
+          file={previewFile}
+          onClose={() => setPreviewFile(null)}
+        />
       )}
 
       {/* Create team modal */}
