@@ -32,9 +32,10 @@ export function fileKind(mime: string): FileKind {
 }
 
 export function fileExt(file: FileItem): string {
-  const m = file.originalFileName.match(/\.([^.]+)$/)
+  const originalName = file.originalFileName ?? ''
+  const m = originalName.match(/\.([^.]+)$/)
   if (m) return m[1].slice(0, 4).toUpperCase()
-  return ({ pdf: 'PDF', doc: 'DOC', sheet: 'XLS', deck: 'KEY', img: 'IMG', video: 'MP4', zip: 'ZIP', audio: 'MP3', other: 'FILE' } as const)[fileKind(file.type)]
+  return ({ pdf: 'PDF', doc: 'DOC', sheet: 'XLS', deck: 'KEY', img: 'IMG', video: 'MP4', zip: 'ZIP', audio: 'MP3', other: 'FILE' } as const)[fileKind(file.type ?? '')]
 }
 
 export function typeLabel(kind: FileKind): string {

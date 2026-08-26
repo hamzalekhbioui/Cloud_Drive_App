@@ -22,7 +22,6 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -48,7 +47,6 @@ public class AiProcessingService {
     private final EmbeddingProvider embeddingProvider;
     private final ChatProvider chatProvider;
     private final ObjectMapper objectMapper;
-    private final JdbcTemplate jdbcTemplate;
 
     public AiProcessingService(FileRepository fileRepository,
                                FileAiProcessingRepository processingRepository,
@@ -56,8 +54,7 @@ public class AiProcessingService {
                                StorageService storageService,
                                EmbeddingProvider embeddingProvider,
                                ChatProvider chatProvider,
-                               ObjectMapper objectMapper,
-                               JdbcTemplate jdbcTemplate) {
+                               ObjectMapper objectMapper) {
         this.fileRepository = fileRepository;
         this.processingRepository = processingRepository;
         this.chunkRepository = chunkRepository;
@@ -65,7 +62,6 @@ public class AiProcessingService {
         this.embeddingProvider = embeddingProvider;
         this.chatProvider = chatProvider;
         this.objectMapper = objectMapper;
-        this.jdbcTemplate = jdbcTemplate;
     }
 
     @Transactional
@@ -132,11 +128,7 @@ public class AiProcessingService {
             try {
                 String embedding = objectMapper.writeValueAsString(embeddingProvider.embed(chunks.get(i)));
                 chunk.setEmbeddingJson(embedding);
-                FileAiChunk saved = chunkRepository.save(chunk);
-                jdbcTemplate.update(
-                        "UPDATE file_ai_chunks SET embedding = CAST(? AS vector) WHERE id = ?",
-                        embedding, saved.getId());
-                continue;
+                chunkRepository.save(chunk);
             } catch (Exception e) {
                 throw new ApiException("Failed to create an embedding for the file.", org.springframework.http.HttpStatus.SERVICE_UNAVAILABLE);
             }

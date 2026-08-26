@@ -6,6 +6,7 @@ import com.cloud.drive.dto.AiCitationDto;
 import com.cloud.drive.dto.AiStatusDto;
 import com.cloud.drive.dto.ChatResponse;
 import com.cloud.drive.exception.ApiException;
+import com.cloud.drive.model.FileAiChunk;
 import com.cloud.drive.model.FileAiChatMessage;
 import com.cloud.drive.model.FileAiProcessing;
 import com.cloud.drive.model.FileEntity;
@@ -17,6 +18,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 
 @Service
@@ -64,17 +66,16 @@ public class AiChatService {
             throw new ApiException("AI chat is not configured.", HttpStatus.SERVICE_UNAVAILABLE);
         }
         float[] query = embeddingProvider.embed(message);
-        String queryEmbedding;
-        try {
-            queryEmbedding = objectMapper.writeValueAsString(query);
-        } catch (Exception e) {
-            throw new ApiException("Unable to prepare the search query.", HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-        List<FileAiChunkRepository.FileAiChunkSearchRow> matches =
-                chunkRepository.searchSimilar(fileId, queryEmbedding, 0.20, 5);
+        List<FileAiChunk> candidates = chunkRepository.findByFileIdAndEmbeddingJsonIsNotNullOrderByChunkIndexAsc(fileId);
+        List<ChunkMatch> matches = candidates.stream()
+                .map(chunk -> toMatch(chunk, query))
+                .filter(match -> match.score() >= 0.20)
+                .sorted(Comparator.comparingDouble(ChunkMatch::score).reversed())
+                .limit(5)
+                .toList();
         if (matches.isEmpty()) throw new ApiException("No searchable content is available for this file.", HttpStatus.CONFLICT);
         String context = matches.stream()
-                .map(m -> "[Source " + m.getChunkIndex() + "] " + m.getContent())
+                .map(m -> "[Source " + m.chunk().getChunkIndex() + "] " + m.chunk().getContent())
                 .reduce("", (a, b) -> a + "\n\n" + b);
         String answer = chatProvider.complete(List.of(
                 new ChatProvider.ChatMessage("system", "Answer only from the supplied file context. If the answer is not present, say so. Cite sources as [Source N]."),
@@ -82,7 +83,7 @@ public class AiChatService {
         saveMessage(fileId, userId, "user", message);
         saveMessage(fileId, userId, "assistant", answer);
         List<AiCitationDto> citations = matches.stream()
-                .map(m -> new AiCitationDto(m.getChunkIndex(), m.getSourceMetadata(), excerpt(m.getContent()), m.getScore()))
+                .map(m -> new AiCitationDto(m.chunk().getChunkIndex(), m.chunk().getSourceMetadata(), excerpt(m.chunk().getContent()), m.score()))
                 .toList();
         return new ChatResponse(answer, citations);
     }
@@ -94,4 +95,32 @@ public class AiChatService {
     }
 
     private String excerpt(String value) { return value.length() > 240 ? value.substring(0, 240) + "…" : value; }
+
+    private ChunkMatch toMatch(FileAiChunk chunk, float[] queryEmbedding) {
+        try {
+            float[] chunkEmbedding = objectMapper.readValue(chunk.getEmbeddingJson(), float[].class);
+            return new ChunkMatch(chunk, cosineSimilarity(queryEmbedding, chunkEmbedding));
+        } catch (Exception e) {
+            return new ChunkMatch(chunk, 0.0);
+        }
+    }
+
+    private double cosineSimilarity(float[] left, float[] right) {
+        int length = Math.min(left.length, right.length);
+        if (length == 0) return 0.0;
+        double dot = 0.0;
+        double leftNorm = 0.0;
+        double rightNorm = 0.0;
+        for (int i = 0; i < length; i++) {
+            double l = left[i];
+            double r = right[i];
+            dot += l * r;
+            leftNorm += l * l;
+            rightNorm += r * r;
+        }
+        if (leftNorm == 0.0 || rightNorm == 0.0) return 0.0;
+        return dot / (Math.sqrt(leftNorm) * Math.sqrt(rightNorm));
+    }
+
+    private record ChunkMatch(FileAiChunk chunk, double score) {}
 }
