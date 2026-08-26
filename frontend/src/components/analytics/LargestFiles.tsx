@@ -23,7 +23,7 @@ export default function LargestFiles({ data }: { data: LargestFile[] }) {
       <ul className="an-lf-list">
         {data.map((f, i) => {
           const kind  = fileKind(f.type ?? '')
-          const ext   = fileExt({ originalFileName: f.name, type: f.type ?? '', id: f.id, url: '', size: f.size, createdAt: f.createdAt, starred: false, deletedAt: null })
+          const ext   = fileExt({ originalFileName: f.fileName, type: f.type ?? '', id: f.id, url: '', size: f.size, createdAt: f.createdAt ?? '', starred: false, deletedAt: null, status: 'ACTIVE', userId: '' })
           const color = TYPE_COLORS[kind]
           const pct   = (f.size / maxSize) * 100
 
@@ -32,7 +32,7 @@ export default function LargestFiles({ data }: { data: LargestFile[] }) {
               <span className="an-lf-rank">#{i + 1}</span>
               <div className={`file-ico ft-${kind}`} style={{ fontSize: 9, width: 32, height: 36, flexShrink: 0 }}>{ext}</div>
               <div className="an-lf-info">
-                <span className="an-lf-name" title={f.name}>{f.name}</span>
+                <span className="an-lf-name" title={f.fileName}>{f.fileName}</span>
                 <div className="an-lf-bar-track">
                   <div className="an-lf-bar-fill"
                     style={{ width: `${pct}%`, background: color, transition: 'width 1s ease' + (i * 0.06) + 's' }} />

@@ -26,14 +26,10 @@ export default function FilesPage() {
   const [searchParams] = useSearchParams()
   const q = searchParams.get('q')?.toLowerCase() ?? ''
 
-  useEffect(() => { fetchFiles() }, [])
+  useEffect(() => {
+    void getMyFiles().then(({ data }) => setFiles(data)).catch(() => setError('Failed to load files.')).finally(() => setLoading(false))
+  }, [])
   useEffect(() => { localStorage.setItem('view', view) }, [view])
-
-  async function fetchFiles() {
-    try { const { data } = await getMyFiles(); setFiles(data) }
-    catch { setError('Failed to load files.') }
-    finally { setLoading(false) }
-  }
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -66,7 +62,7 @@ export default function FilesPage() {
     } catch { setError('Failed to update star.') }
   }
 
-  const toggleSelect = (id: number, _multi: boolean) =>
+  const toggleSelect = (id: number) =>
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
 
   const byType = filter === 'all' ? files : files.filter((f) => fileKind(f.type) === filter)

@@ -12,6 +12,28 @@ export interface FileItem {
   deletedAt: string | null
   status: 'ACTIVE' | 'PENDING'
   userId: string
+  aiStatus?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'ERROR' | 'UNSUPPORTED'
+  aiError?: string | null
+  aiSummary?: string | null
+}
+
+export interface AiStatus {
+  status: FileItem['aiStatus']
+  error: string | null
+  summary: string | null
+  processedAt: string | null
+}
+
+export interface AiCitation {
+  chunkIndex: number
+  source: string | null
+  excerpt: string
+  score: number
+}
+
+export interface ChatResponse {
+  answer: string
+  citations: AiCitation[]
 }
 
 export interface UploadTarget {
@@ -30,6 +52,10 @@ export const deleteFile = (fileId: number) => client.delete(`/files/${fileId}`)
 export const restoreFile = (fileId: number) => client.post(`/files/${fileId}/restore`)
 export const permanentlyDeleteFile = (fileId: number) => client.delete(`/files/${fileId}/permanent`)
 export const starFile = (fileId: number) => client.patch<FileItem>(`/files/${fileId}/star`)
+export const getAiStatus = (fileId: number) => client.get<AiStatus>(`/files/${fileId}/ai-status`)
+export const retryAi = (fileId: number) => client.post<AiStatus>(`/files/${fileId}/ai-status/retry`)
+export const chatWithFile = (fileId: number, message: string) =>
+  client.post<ChatResponse>(`/files/${fileId}/chat`, { message })
 
 // ── two-phase direct-to-Azure upload ──────────────────────────────────────
 
@@ -83,10 +109,11 @@ export const uploadFile = async (
 
     const { data } = await client.post<FileItem>(`/files/upload/${target.uploadId}/commit`)
     return data
-  } catch (err: any) {
+  } catch (err: unknown) {
+    const error = err as { response?: unknown; request?: unknown; config?: { url?: string }; message?: string }
     // If it's a CORS error (no response) or Azure-specific error, try the legacy multipart upload
-    const isNetworkOrCorsError = !err.response && err.request
-    const isAzureError = err.config?.url?.includes('blob.core.windows.net')
+    const isNetworkOrCorsError = !error.response && error.request
+    const isAzureError = error.config?.url?.includes('blob.core.windows.net')
 
     if (isNetworkOrCorsError || isAzureError) {
       console.warn('Direct upload failed (possibly CORS). Falling back to multipart proxy upload.', err)

@@ -5,7 +5,7 @@ type IconName =
   | 'chart' | 'search' | 'plus' | 'upload' | 'download' | 'more' | 'grid' | 'list'
   | 'lock' | 'sun' | 'moon' | 'bell' | 'settings' | 'chevronRight' | 'chevronLeft'
   | 'chevronDown' | 'close' | 'check' | 'link' | 'copy' | 'edit' | 'move' | 'eye'
-  | 'filter' | 'layers' | 'menu' | 'restore' | 'mail' | 'shield' | 'key' | 'trend' | 'tag'
+  | 'filter' | 'layers' | 'menu' | 'restore' | 'mail' | 'shield' | 'key' | 'trend' | 'tag' | 'info'
 
 interface IconProps {
   name: IconName
@@ -63,6 +63,7 @@ export default function Icon({ name, size = 18, className, strokeWidth = 1.6, st
     key: <><circle cx="8" cy="16" r="4" /><path d="m10 14 8-8 2 2-2 2 2 2-2 2-2-2-2 2" /></>,
     trend: <><path d="M3 17 9 11l4 4 8-8" /><path d="M17 7h4v4" /></>,
     tag: <><path d="M3 12V4a1 1 0 0 1 1-1h8l8 8-9 9-8-8Z" /><circle cx="8" cy="8" r="1.5" /></>,
+    info: <><circle cx="12" cy="12" r="9" /><path d="M12 10v6M12 7h.01" /></>,
   }
   return <svg {...common}>{paths[name]}</svg>
 }

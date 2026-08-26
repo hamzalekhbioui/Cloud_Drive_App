@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import client from '../api/client'
 import Icon from '../components/Icon'
-import { formatSize } from '../utils/files'
+import { formatBytes } from '../utils/files'
 
 interface PublicFile {
   id: number
@@ -65,7 +65,7 @@ export default function PublicSharePage() {
 
           <h1 style={{ fontFamily: 'var(--serif)', fontSize: 36, marginBottom: 8, wordBreak: 'break-all' }}>{file?.originalFileName}</h1>
           <div style={{ color: 'var(--ink-3)', fontSize: 14, marginBottom: 32 }}>
-            {file && formatSize(file.size)} • Shared on {file && new Date(file.createdAt).toLocaleDateString()}
+            {file && formatBytes(file.size)} • Shared on {file && new Date(file.createdAt).toLocaleDateString()}
           </div>
 
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>

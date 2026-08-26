@@ -5,13 +5,18 @@ import com.cloud.drive.dto.UploadTargetDto;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.repository.FileRepository;
+import com.cloud.drive.repository.FileAiProcessingRepository;
+import com.cloud.drive.model.FileAiProcessing;
 import com.cloud.drive.repository.TeamMemberRepository;
 import com.cloud.drive.security.FilenamePolicy;
 import com.cloud.drive.storage.StorageService;
 import com.cloud.drive.util.MimePolicy;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.context.ApplicationEventPublisher;
+import com.cloud.drive.ai.FileAiQueuedEvent;
 import org.springframework.web.multipart.MultipartFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,17 +43,36 @@ public class FileService {
     private final FileRepository fileRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final SubscriptionService subscriptionService;
+    private final FileAiProcessingRepository aiProcessingRepository;
+    private final AiProcessingService aiProcessingService;
+    private final ApplicationEventPublisher eventPublisher;
 
     public FileService(BlobStorageService blobStorageService,
                        StorageService storageService,
                        FileRepository fileRepository,
                        TeamMemberRepository teamMemberRepository,
                        SubscriptionService subscriptionService) {
+        this(blobStorageService, storageService, fileRepository, teamMemberRepository,
+                subscriptionService, null, null, null);
+    }
+
+    @Autowired
+    public FileService(BlobStorageService blobStorageService,
+                       StorageService storageService,
+                       FileRepository fileRepository,
+                       TeamMemberRepository teamMemberRepository,
+                       SubscriptionService subscriptionService,
+                       FileAiProcessingRepository aiProcessingRepository,
+                       AiProcessingService aiProcessingService,
+                       ApplicationEventPublisher eventPublisher) {
         this.blobStorageService = blobStorageService;
         this.storageService = storageService;
         this.fileRepository = fileRepository;
         this.teamMemberRepository = teamMemberRepository;
         this.subscriptionService = subscriptionService;
+        this.aiProcessingRepository = aiProcessingRepository;
+        this.aiProcessingService = aiProcessingService;
+        this.eventPublisher = eventPublisher;
     }
 
     // ── legacy multipart upload (retained for backward compatibility) ──────
@@ -83,7 +107,9 @@ public class FileService {
         fileEntity.setCreatedAt(LocalDateTime.now());
         fileEntity.setStatus(STATUS_ACTIVE);
 
-        return mapToDto(fileRepository.save(fileEntity));
+        FileResponseDto dto = mapToDto(fileRepository.save(fileEntity));
+        queueAiProcessing(fileEntity.getId());
+        return dto;
     }
 
     @Transactional
@@ -114,7 +140,9 @@ public class FileService {
         fileEntity.setCreatedAt(LocalDateTime.now());
         fileEntity.setStatus(STATUS_ACTIVE);
 
-        return mapToDto(fileRepository.save(fileEntity));
+        FileResponseDto dto = mapToDto(fileRepository.save(fileEntity));
+        queueAiProcessing(fileEntity.getId());
+        return dto;
     }
 
     // ── two-phase direct-to-storage upload ────────────────────────────────
@@ -169,7 +197,9 @@ public class FileService {
         storageService.assertLength(f.getBlobFileName(), f.getSize());
         f.setStatus(STATUS_ACTIVE);
         f.setUrl(storageService.createReadUrl(f.getBlobFileName(), false, Duration.ofMinutes(15)));
-        return mapToDto(fileRepository.save(f));
+        FileResponseDto dto = mapToDto(fileRepository.save(f));
+        queueAiProcessing(f.getId());
+        return dto;
     }
 
     // ── file queries ──────────────────────────────────────────────────────
@@ -206,6 +236,14 @@ public class FileService {
         return findOwned(fileId, userId);
     }
 
+    public FileEntity findOwnedForAi(Long fileId, String userId) {
+        FileEntity file = findOwned(fileId, userId);
+        if (file.getDeletedAt() != null || !STATUS_ACTIVE.equals(file.getStatus())) {
+            throw new ApiException("File is not available for AI chat", HttpStatus.CONFLICT);
+        }
+        return file;
+    }
+
     /**
      * Stream bytes from the underlying storage to the given output, supporting byte-range.
      *
@@ -237,6 +275,7 @@ public class FileService {
     public void permanentlyDeleteFile(Long fileId, String userId) {
         FileEntity file = findOwned(fileId, userId);
         blobStorageService.deleteFile(file.getBlobFileName());
+        if (aiProcessingService != null) aiProcessingService.deleteForFile(file.getId());
         fileRepository.delete(file);
         // Release quota so the usedBytes counter stays accurate
         if (file.getSize() != null && file.getSize() > 0) {
@@ -320,7 +359,21 @@ public class FileService {
         dto.setTeamId(entity.getTeamId());
         dto.setDeletedAt(entity.getDeletedAt());
         dto.setUserId(entity.getUserId());
+        dto.setStatus(entity.getStatus());
+        if (aiProcessingRepository != null) {
+            aiProcessingRepository.findById(entity.getId()).ifPresent(ai -> {
+                dto.setAiStatus(ai.getStatus());
+                dto.setAiError(ai.getError());
+                dto.setAiSummary(ai.getSummary());
+            });
+        }
         return dto;
+    }
+
+    private void queueAiProcessing(Long fileId) {
+        if (aiProcessingService == null || fileId == null) return;
+        aiProcessingService.ensurePending(fileId);
+        if (eventPublisher != null) eventPublisher.publishEvent(new FileAiQueuedEvent(fileId));
     }
 
     // sanitizeFileName(), extension(), contentTypeFor() have been replaced by

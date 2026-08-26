@@ -24,9 +24,9 @@ public class AzureBlobStorageService implements StorageService {
     private final BlobServiceClient client;
     private final String container;
 
-    public AzureBlobStorageService(BlobServiceClient client,
+    public AzureBlobStorageService(java.util.Optional<BlobServiceClient> client,
             @Value("${azure.storage.container-name}") String container) {
-        this.client = client;
+        this.client = client.orElse(null);
         this.container = container;
     }
 

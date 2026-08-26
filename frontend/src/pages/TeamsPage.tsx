@@ -35,6 +35,7 @@ export default function TeamsPage() {
     if (selected) {
       loadTeamFiles(selected.id)
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTeamFiles([])
     }
   }, [selected])

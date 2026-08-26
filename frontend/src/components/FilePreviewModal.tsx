@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { FileItem } from '../api/files'
+import { chatWithFile, getAiStatus, retryAi, type AiCitation, type FileItem } from '../api/files'
 import { fileKind, fileExt, formatBytes, formatDate, typeLabel, TYPE_COLORS } from '../utils/files'
 import Icon from './Icon'
 import client from '../api/client'
@@ -18,6 +18,7 @@ function usePdfBlobUrl(fileId: number, enabled: boolean) {
   useEffect(() => {
     if (!enabled) return
     let url: string | null = null
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setLoading(true)
     client
       .get(`/files/${fileId}/stream`, { responseType: 'blob' })
@@ -39,6 +40,39 @@ export default function FilePreviewModal({ file, onClose, onDelete }: Props) {
   const color = TYPE_COLORS[kind]
 
   const { blobUrl: pdfBlobUrl, loading: pdfLoading, error: pdfError } = usePdfBlobUrl(file.id, kind === 'pdf')
+  const aiSupported = kind === 'pdf' || file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+  const [aiStatus, setAiStatus] = useState<import('../api/files').AiStatus | null>(file.aiStatus ? {
+    status: file.aiStatus, error: file.aiError ?? null, summary: file.aiSummary ?? null, processedAt: null
+  } : null)
+  const [question, setQuestion] = useState('')
+  const [answer, setAnswer] = useState<{ text: string; citations: AiCitation[] } | null>(null)
+  const [chatLoading, setChatLoading] = useState(false)
+  const [chatError, setChatError] = useState('')
+
+  useEffect(() => {
+    if (!aiSupported) return
+    let active = true
+    const load = () => getAiStatus(file.id).then(({ data }) => { if (active) setAiStatus(data) }).catch(() => undefined)
+    void load()
+    const timer = window.setInterval(() => {
+      if (aiStatus?.status === 'COMPLETED' || aiStatus?.status === 'ERROR' || aiStatus?.status === 'UNSUPPORTED') return
+      void load()
+    }, 2500)
+    return () => { active = false; window.clearInterval(timer) }
+  }, [file.id, aiSupported, aiStatus?.status])
+
+  async function askFile() {
+    if (!question.trim()) return
+    setChatLoading(true); setChatError('')
+    try {
+      const { data } = await chatWithFile(file.id, question.trim())
+      setAnswer({ text: data.answer, citations: data.citations })
+      setQuestion('')
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { message?: string } } }
+      setChatError(error.response?.data?.message ?? 'Unable to answer this question.')
+    } finally { setChatLoading(false) }
+  }
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -112,6 +146,36 @@ export default function FilePreviewModal({ file, onClose, onDelete }: Props) {
               </button>
             )}
           </div>
+          {aiSupported && (
+            <div style={{ marginTop: 22, borderTop: '1px solid var(--border)', paddingTop: 18 }}>
+              <div className="eyebrow" style={{ color: 'var(--accent)' }}>AI file chat</div>
+              {!aiStatus || aiStatus.status === 'PENDING' || aiStatus.status === 'PROCESSING' ? (
+                <div style={{ color: 'var(--ink-3)', fontSize: 13, marginTop: 8 }}>Preparing this file for questions…</div>
+              ) : aiStatus.status === 'UNSUPPORTED' || aiStatus.status === 'ERROR' ? (
+                <div style={{ color: 'var(--danger)', fontSize: 13, marginTop: 8 }}>
+                  {aiStatus.error || 'AI processing failed.'}
+                  <button type="button" className="btn btn-secondary btn-sm" style={{ marginTop: 8 }} onClick={() => void retryAi(file.id).then(({ data }) => setAiStatus(data))}>Retry</button>
+                </div>
+              ) : (
+                <>
+                  {aiStatus.summary && <div style={{ fontSize: 12, color: 'var(--ink-3)', margin: '8px 0 12px', lineHeight: 1.45 }}>{aiStatus.summary}</div>}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <input value={question} onChange={(e) => setQuestion(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') void askFile() }} placeholder="Ask this file…" maxLength={2000} style={{ minWidth: 0, flex: 1 }} />
+                    <button type="button" className="btn btn-accent btn-sm" onClick={() => void askFile()} disabled={chatLoading || !question.trim()}>{chatLoading ? '…' : 'Ask'}</button>
+                  </div>
+                  {chatError && <div style={{ color: 'var(--danger)', fontSize: 12, marginTop: 8 }}>{chatError}</div>}
+                  {answer && <div style={{ marginTop: 12, fontSize: 13, lineHeight: 1.5 }}>
+                    <div>{answer.text}</div>
+                    {answer.citations.length > 0 && (
+                      <div style={{ marginTop: 8, color: 'var(--ink-3)', fontSize: 11 }}>
+                        {answer.citations.map((c) => <div key={c.chunkIndex}>{c.source ?? `Source ${c.chunkIndex}`}: {c.excerpt}</div>)}
+                      </div>
+                    )}
+                  </div>}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>

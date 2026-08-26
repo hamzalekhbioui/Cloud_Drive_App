@@ -13,6 +13,10 @@ public class FileResponseDto {
     private Long teamId;
     private LocalDateTime deletedAt;
     private String userId;
+    private String status;
+    private String aiStatus;
+    private String aiError;
+    private String aiSummary;
 
     public FileResponseDto() {}
 
@@ -45,4 +49,13 @@ public class FileResponseDto {
 
     public String getUserId() { return userId; }
     public void setUserId(String userId) { this.userId = userId; }
+
+    public String getStatus() { return status; }
+    public void setStatus(String status) { this.status = status; }
+    public String getAiStatus() { return aiStatus; }
+    public void setAiStatus(String aiStatus) { this.aiStatus = aiStatus; }
+    public String getAiError() { return aiError; }
+    public void setAiError(String aiError) { this.aiError = aiError; }
+    public String getAiSummary() { return aiSummary; }
+    public void setAiSummary(String aiSummary) { this.aiSummary = aiSummary; }
 }

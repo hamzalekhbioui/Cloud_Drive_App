@@ -63,7 +63,7 @@ export default function DashboardPage() {
       setFiles((prev) => [data, ...prev])
       void fetchOverview()
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string } }; message?: string; request?: any }
+      const axiosErr = err as { response?: { data?: { message?: string } }; message?: string; request?: unknown }
       const msg = axiosErr?.response?.data?.message ?? axiosErr?.message ?? 'Upload failed.'
       setError(msg)
     } finally {
@@ -76,15 +76,6 @@ export default function DashboardPage() {
       const { data } = await starFile(id)
       setFiles((prev) => prev.map((f) => f.id === id ? data : f))
     } catch { setError('Failed to update star.') }
-  }
-
-  async function handleDelete(id: number) {
-    if (!confirm('Move this file to trash?')) return
-    try {
-      await deleteFile(id)
-      setFiles((prev) => prev.filter((f) => f.id !== id))
-      void fetchOverview()
-    } catch { setError('Failed to delete file.') }
   }
 
   useEffect(() => {

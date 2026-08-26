@@ -53,7 +53,7 @@ export default function SmartInsights({ data }: { data: Insight[] }) {
               </div>
               <div>
                 <div className="an-insight-msg">{ins.message}</div>
-                <div className="an-insight-detail">{ins.detail}</div>
+                <div className="an-insight-detail">{ins.message}</div>
               </div>
             </motion.div>
           )

@@ -2,6 +2,11 @@ package com.cloud.drive.controller;
 
 import com.cloud.drive.dto.FileResponseDto;
 import com.cloud.drive.dto.UploadTargetDto;
+import com.cloud.drive.dto.AiStatusDto;
+import com.cloud.drive.dto.ChatRequest;
+import com.cloud.drive.dto.ChatResponse;
+import com.cloud.drive.service.AiChatService;
+import com.cloud.drive.service.AiProcessingService;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.security.FilenamePolicy;
 import com.cloud.drive.service.FileService;
@@ -13,7 +18,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
@@ -26,9 +33,18 @@ import java.util.Map;
 public class FileController {
 
     private final FileService fileService;
+    private final AiChatService aiChatService;
+    private final AiProcessingService aiProcessingService;
 
     public FileController(FileService fileService) {
+        this(fileService, null, null);
+    }
+
+    @Autowired
+    public FileController(FileService fileService, AiChatService aiChatService, AiProcessingService aiProcessingService) {
         this.fileService = fileService;
+        this.aiChatService = aiChatService;
+        this.aiProcessingService = aiProcessingService;
     }
 
     // ── legacy multipart upload (retained for backward compatibility) ──────
@@ -168,5 +184,30 @@ public class FileController {
             @PathVariable Long fileId,
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(fileService.toggleStar(fileId, userDetails.getUsername()));
+    }
+
+    @GetMapping("/{fileId}/ai-status")
+    public ResponseEntity<AiStatusDto> aiStatus(
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(aiChatService.status(fileId, userDetails.getUsername()));
+    }
+
+    @PostMapping("/{fileId}/ai-status/retry")
+    public ResponseEntity<AiStatusDto> retryAi(
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        fileService.findOwnedForAi(fileId, userDetails.getUsername());
+        aiProcessingService.ensurePending(fileId);
+        aiProcessingService.processAsync(fileId);
+        return ResponseEntity.accepted().body(aiChatService.status(fileId, userDetails.getUsername()));
+    }
+
+    @PostMapping("/{fileId}/chat")
+    public ResponseEntity<ChatResponse> chat(
+            @PathVariable Long fileId,
+            @Valid @RequestBody ChatRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(aiChatService.chat(fileId, userDetails.getUsername(), request.getMessage().trim()));
     }
 }
