@@ -30,6 +30,7 @@ public class AiChatService {
     private final EmbeddingProvider embeddingProvider;
     private final ChatProvider chatProvider;
     private final ObjectMapper objectMapper;
+    private final AiProcessingService aiProcessingService;
 
     public AiChatService(FileService fileService,
                          FileAiProcessingRepository processingRepository,
@@ -37,7 +38,8 @@ public class AiChatService {
                          FileAiChatMessageRepository messageRepository,
                          EmbeddingProvider embeddingProvider,
                          ChatProvider chatProvider,
-                         ObjectMapper objectMapper) {
+                         ObjectMapper objectMapper,
+                         AiProcessingService aiProcessingService) {
         this.fileService = fileService;
         this.processingRepository = processingRepository;
         this.chunkRepository = chunkRepository;
@@ -45,11 +47,17 @@ public class AiChatService {
         this.embeddingProvider = embeddingProvider;
         this.chatProvider = chatProvider;
         this.objectMapper = objectMapper;
+        this.aiProcessingService = aiProcessingService;
     }
 
     public AiStatusDto status(Long fileId, String userId) {
         fileService.findOwnedForAi(fileId, userId);
         FileAiProcessing row = processingRepository.findById(fileId).orElse(null);
+        if (row == null) {
+            aiProcessingService.ensurePending(fileId);
+            aiProcessingService.processAsync(fileId);
+            row = processingRepository.findById(fileId).orElse(null);
+        }
         return row == null ? new AiStatusDto(AiProcessingService.PENDING, null, null, null)
                 : new AiStatusDto(row.getStatus(), row.getError(), row.getSummary(), row.getProcessedAt());
     }

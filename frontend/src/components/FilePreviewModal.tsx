@@ -48,11 +48,20 @@ export default function FilePreviewModal({ file, onClose, onDelete }: Props) {
   const [answer, setAnswer] = useState<{ text: string; citations: AiCitation[] } | null>(null)
   const [chatLoading, setChatLoading] = useState(false)
   const [chatError, setChatError] = useState('')
+  const [aiStatusError, setAiStatusError] = useState('')
 
   useEffect(() => {
     if (!aiSupported) return
     let active = true
-    const load = () => getAiStatus(file.id).then(({ data }) => { if (active) setAiStatus(data) }).catch(() => undefined)
+    const load = () => getAiStatus(file.id)
+      .then(({ data }) => {
+        if (!active) return
+        setAiStatusError('')
+        setAiStatus(data)
+      })
+      .catch(() => {
+        if (active) setAiStatusError('Unable to check AI processing status.')
+      })
     void load()
     const timer = window.setInterval(() => {
       if (aiStatus?.status === 'COMPLETED' || aiStatus?.status === 'ERROR' || aiStatus?.status === 'UNSUPPORTED') return
@@ -149,7 +158,9 @@ export default function FilePreviewModal({ file, onClose, onDelete }: Props) {
           {aiSupported && (
             <div style={{ marginTop: 22, borderTop: '1px solid var(--border)', paddingTop: 18 }}>
               <div className="eyebrow" style={{ color: 'var(--accent)' }}>AI file chat</div>
-              {!aiStatus || aiStatus.status === 'PENDING' || aiStatus.status === 'PROCESSING' ? (
+              {aiStatusError ? (
+                <div style={{ color: 'var(--danger)', fontSize: 13, marginTop: 8 }}>{aiStatusError}</div>
+              ) : !aiStatus || aiStatus.status === 'PENDING' || aiStatus.status === 'PROCESSING' ? (
                 <div style={{ color: 'var(--ink-3)', fontSize: 13, marginTop: 8 }}>Preparing this file for questions…</div>
               ) : aiStatus.status === 'UNSUPPORTED' || aiStatus.status === 'ERROR' ? (
                 <div style={{ color: 'var(--danger)', fontSize: 13, marginTop: 8 }}>
