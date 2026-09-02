@@ -1,6 +1,7 @@
 package com.cloud.drive.config;
 
 import com.cloud.drive.security.JwtAuthFilter;
+import jakarta.servlet.DispatcherType;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -66,6 +67,9 @@ public class SecurityConfig {
                   + "frame-ancestors 'none'; "
                   + "connect-src 'self' https://*.blob.core.windows.net")))
             .authorizeHttpRequests(auth -> auth
+                // StreamingResponseBody completes on an ASYNC dispatch after the
+                // authenticated request has already passed authorization.
+                .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                 .requestMatchers(
                     "/api/auth/**",
                     "/api/shares/public/**",

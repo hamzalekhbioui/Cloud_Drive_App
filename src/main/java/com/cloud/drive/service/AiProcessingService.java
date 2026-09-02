@@ -74,6 +74,7 @@ public class AiProcessingService {
     }
 
     @Async
+    @Transactional
     public void processAsync(Long fileId) {
         try {
             process(fileId);
@@ -82,13 +83,18 @@ public class AiProcessingService {
         }
     }
 
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void processAfterCommit(FileAiQueuedEvent event) {
-        processAsync(event.fileId());
+        try {
+            process(event.fileId());
+        } catch (Exception e) {
+            markError(event.fileId(), safeMessage(e));
+        }
     }
 
     @Transactional
-    public void process(Long fileId) {
+    public synchronized void process(Long fileId) {
         FileEntity file = fileRepository.findById(fileId)
                 .orElseThrow(() -> new ApiException("File not found", org.springframework.http.HttpStatus.NOT_FOUND));
         FileAiProcessing row = processingRepository.findById(fileId).orElseGet(() -> new FileAiProcessing(fileId));

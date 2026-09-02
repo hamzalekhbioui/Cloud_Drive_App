@@ -44,6 +44,4 @@ project.zip
 .env
 frontend/.env
 .env.*
-!.env.example
 frontend/.env.*
-!frontend/.env.example

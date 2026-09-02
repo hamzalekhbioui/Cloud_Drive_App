@@ -5,6 +5,8 @@ import com.cloud.drive.exception.ApiException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.net.URI;
@@ -16,6 +18,8 @@ import java.util.List;
 
 @Service
 public class AzureOpenAiProvider implements EmbeddingProvider, ChatProvider {
+    private static final Logger log = LoggerFactory.getLogger(AzureOpenAiProvider.class);
+
     private final AzureOpenAiProperties properties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -44,7 +48,12 @@ public class AzureOpenAiProvider implements EmbeddingProvider, ChatProvider {
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
-            throw providerError("Embedding provider request failed");
+            log.error("Embedding provider request failed", e);
+            String detail = e.getMessage();
+            if (detail == null || detail.isBlank()) {
+                detail = e.getClass().getSimpleName();
+            }
+            throw providerError("Embedding provider request failed: " + detail);
         }
     }
 
@@ -54,8 +63,7 @@ public class AzureOpenAiProvider implements EmbeddingProvider, ChatProvider {
         try {
             String body = objectMapper.writeValueAsString(java.util.Map.of(
                     "messages", messages.stream().map(m -> java.util.Map.of("role", m.role(), "content", m.content())).toList(),
-                    "temperature", 0.1,
-                    "max_tokens", 800));
+                    "max_completion_tokens", 800));
             JsonNode root = post("/openai/deployments/" + properties.getChatDeployment() + "/chat/completions", body);
             String content = root.path("choices").path(0).path("message").path("content").asText(null);
             if (content == null || content.isBlank()) throw providerError("Chat response was empty");
@@ -63,7 +71,12 @@ public class AzureOpenAiProvider implements EmbeddingProvider, ChatProvider {
         } catch (ApiException e) {
             throw e;
         } catch (Exception e) {
-            throw providerError("Chat provider request failed");
+            log.error("Chat provider request failed", e);
+            String detail = e.getMessage();
+            if (detail == null || detail.isBlank()) {
+                detail = e.getClass().getSimpleName();
+            }
+            throw providerError("Chat provider request failed: " + detail);
         }
     }
 
@@ -78,9 +91,22 @@ public class AzureOpenAiProvider implements EmbeddingProvider, ChatProvider {
                 .build();
         HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw providerError("Azure OpenAI request failed (" + response.statusCode() + ")");
+            String detail = response.body();
+            if (detail == null || detail.isBlank()) {
+                detail = "no response body";
+            } else if (detail.length() > 500) {
+                detail = detail.substring(0, 500);
+            }
+            throw providerError(toUserMessage(response.statusCode(), detail));
         }
         return objectMapper.readTree(response.body());
+    }
+
+    private String toUserMessage(int statusCode, String detail) {
+        return switch (statusCode) {
+            case 401, 403, 402, 429 -> "AI is temporarily unavailable. Please try again later.";
+            default -> "Sorry, I couldn't process your request. Please try again later.";
+        };
     }
 
     private void ensureConfigured() {
