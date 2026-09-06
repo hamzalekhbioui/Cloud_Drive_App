@@ -1,8 +1,10 @@
 package com.cloud.drive.service;
 
 import com.cloud.drive.exception.ApiException;
+import com.cloud.drive.model.Plan;
 import com.cloud.drive.model.Subscription;
 import com.cloud.drive.repository.FileRepository;
+import com.cloud.drive.repository.PlanRepository;
 import com.cloud.drive.repository.SubscriptionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,7 @@ class SubscriptionServiceTest {
 
     @Mock private SubscriptionRepository subRepo;
     @Mock private FileRepository fileRepo;
+    @Mock private PlanRepository planRepo;
 
     @InjectMocks private SubscriptionService subscriptionService;
 
@@ -39,10 +42,18 @@ class SubscriptionServiceTest {
         return sub;
     }
 
+    private Plan plan(String slug, long storageLimitBytes) {
+        Plan plan = new Plan();
+        plan.setSlug(slug);
+        plan.setStorageLimitBytes(storageLimitBytes);
+        return plan;
+    }
+
     @Test
     void enforceStorageQuota_throwsPaymentRequired_whenUploadExceedsPlanLimit() {
         Subscription sub = subscription("FREE");
-        sub.setUsedBytes(Subscription.FREE_BYTES - 1);
+        sub.setUsedBytes(5L * 1024 * 1024 * 1024 - 1);
+        when(planRepo.findBySlug("FREE")).thenReturn(Optional.of(plan("FREE", 5L * 1024 * 1024 * 1024)));
         when(subRepo.findForUpdate(EMAIL)).thenReturn(Optional.of(sub));
 
         assertThatThrownBy(() -> subscriptionService.enforceStorageQuota(EMAIL, 2))
@@ -53,7 +64,8 @@ class SubscriptionServiceTest {
     @Test
     void validateStorageFitsPlan_throwsConflict_whenDowngradeWouldExceedNewLimit() {
         Subscription current = subscription("BUSINESS");
-        current.setUsedBytes(Subscription.FREE_BYTES + 1);
+        current.setUsedBytes(5L * 1024 * 1024 * 1024 + 1);
+        when(planRepo.findBySlug("FREE")).thenReturn(Optional.of(plan("FREE", 5L * 1024 * 1024 * 1024)));
 
         assertThatThrownBy(() -> subscriptionService.validateStorageFitsPlan(current, "FREE"))
                 .isInstanceOf(ApiException.class)

@@ -4,6 +4,8 @@ import com.cloud.drive.dto.subscription.SubscriptionResponse;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.Subscription;
 import com.cloud.drive.repository.FileRepository;
+import com.cloud.drive.model.Plan;
+import com.cloud.drive.repository.PlanRepository;
 import com.cloud.drive.repository.SubscriptionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,10 +24,12 @@ public class SubscriptionService {
 
     private final SubscriptionRepository subRepo;
     private final FileRepository fileRepo;
+    private final PlanRepository planRepo;
 
-    public SubscriptionService(SubscriptionRepository subRepo, FileRepository fileRepo) {
+    public SubscriptionService(SubscriptionRepository subRepo, FileRepository fileRepo, PlanRepository planRepo) {
         this.subRepo = subRepo;
         this.fileRepo = fileRepo;
+        this.planRepo = planRepo;
     }
 
     /** Returns the user's subscription, creating a FREE one if none exists. */
@@ -43,9 +47,8 @@ public class SubscriptionService {
      * downgrade. Plan mutation is intentionally not exposed by this service.</p>
      */
     public void validateStorageFitsPlan(Subscription current, String targetPlan) {
-        Subscription probe = new Subscription();
-        probe.setPlan(targetPlan);
-        if (current.getUsedBytes() > probe.getPlanLimitBytes()) {
+        Plan target = findPlanForCompatibility(targetPlan);
+        if (current.getUsedBytes() > target.getStorageLimitBytes()) {
             throw new ApiException(
                     "Cannot downgrade: current storage usage exceeds the " + targetPlan + " plan limit.",
                     HttpStatus.CONFLICT);
@@ -65,11 +68,12 @@ public class SubscriptionService {
     public void enforceStorageQuota(String userEmail, long additionalBytes) {
         Subscription sub = subRepo.findForUpdate(userEmail)
                 .orElseGet(() -> createFree(userEmail));
-        long limit = sub.getPlanLimitBytes();
+        Plan plan = resolvePlan(sub);
+        long limit = plan.getStorageLimitBytes();
         long currentUsed = sub.getUsedBytes();
         if (currentUsed + additionalBytes > limit) {
             throw new ApiException(
-                    "Storage quota exceeded for the " + sub.getPlan() + " plan. Upgrade to upload more files.",
+                    "Storage quota exceeded for the " + plan.getSlug() + " plan. Upgrade to upload more files.",
                     HttpStatus.PAYMENT_REQUIRED);
         }
         sub.reserve(additionalBytes);
@@ -87,10 +91,10 @@ public class SubscriptionService {
     public void reserveQuota(String userEmail, long declaredBytes) {
         Subscription sub = subRepo.findForUpdate(userEmail)
                 .orElseGet(() -> createFree(userEmail));
-        long limit = sub.getPlanLimitBytes();
-        if (sub.getUsedBytes() + declaredBytes > limit) {
+        Plan plan = resolvePlan(sub);
+        if (sub.getUsedBytes() + declaredBytes > plan.getStorageLimitBytes()) {
             throw new ApiException(
-                    "Storage quota exceeded for the " + sub.getPlan() + " plan. Upgrade to upload more files.",
+                    "Storage quota exceeded for the " + plan.getSlug() + " plan. Upgrade to upload more files.",
                     HttpStatus.PAYMENT_REQUIRED);
         }
         sub.reserve(declaredBytes);
@@ -111,8 +115,11 @@ public class SubscriptionService {
 
     public long getStorageLimitBytes(String userEmail) {
         return subRepo.findByUserEmail(userEmail)
-                .map(Subscription::getPlanLimitBytes)
-                .orElse(Subscription.FREE_BYTES);
+                .map(this::resolvePlan)
+                .map(Plan::getStorageLimitBytes)
+                .orElseGet(() -> planRepo.findBySlug("FREE")
+                        .map(Plan::getStorageLimitBytes)
+                        .orElseThrow(() -> new ApiException("FREE plan is not configured", HttpStatus.INTERNAL_SERVER_ERROR)));
     }
 
     // ── periodic reconciliation ─────────────────────────────────────────────
@@ -149,6 +156,8 @@ public class SubscriptionService {
         Subscription s = new Subscription();
         s.setUserEmail(userEmail);
         s.setPlan("FREE");
+        s.setPlanRecord(planRepo.findBySlug("FREE")
+                .orElseThrow(() -> new ApiException("FREE plan is not configured", HttpStatus.INTERNAL_SERVER_ERROR)));
         s.setStatus("ACTIVE");
         s.setStartDate(LocalDateTime.now());
         return subRepo.save(s);
@@ -156,7 +165,7 @@ public class SubscriptionService {
 
     private SubscriptionResponse toResponse(Subscription sub, String userEmail) {
         long used  = sub.getUsedBytes();
-        long limit = sub.getPlanLimitBytes();
+        long limit = resolvePlan(sub).getStorageLimitBytes();
 
         SubscriptionResponse r = new SubscriptionResponse();
         r.setPlan(sub.getPlan());
@@ -167,5 +176,17 @@ public class SubscriptionService {
         r.setStartDate(sub.getStartDate());
         r.setEndDate(sub.getEndDate());
         return r;
+    }
+
+    private Plan resolvePlan(Subscription subscription) {
+        if (subscription.getPlanRecord() != null) return subscription.getPlanRecord();
+        Plan plan = findPlanForCompatibility(subscription.getPlan());
+        subscription.setPlanRecord(plan);
+        return plan;
+    }
+
+    private Plan findPlanForCompatibility(String slug) {
+        return planRepo.findBySlug(slug.toUpperCase())
+                .orElseThrow(() -> new ApiException("Plan not found: " + slug, HttpStatus.INTERNAL_SERVER_ERROR));
     }
 }
