@@ -12,17 +12,21 @@ public class StripeProperties {
     private String frontendCancelUrl;
 
     public String getSecretKey() { return secretKey; }
-    public void setSecretKey(String secretKey) { this.secretKey = secretKey; }
+    public void setSecretKey(String secretKey) { this.secretKey = normalize(secretKey); }
 
     public String getPublishableKey() { return publishableKey; }
-    public void setPublishableKey(String publishableKey) { this.publishableKey = publishableKey; }
+    public void setPublishableKey(String publishableKey) { this.publishableKey = normalize(publishableKey); }
 
     public String getWebhookSecret() { return webhookSecret; }
-    public void setWebhookSecret(String webhookSecret) { this.webhookSecret = webhookSecret; }
+    public void setWebhookSecret(String webhookSecret) { this.webhookSecret = normalize(webhookSecret); }
 
     public String getFrontendSuccessUrl() { return frontendSuccessUrl; }
-    public void setFrontendSuccessUrl(String frontendSuccessUrl) { this.frontendSuccessUrl = frontendSuccessUrl; }
+    public void setFrontendSuccessUrl(String frontendSuccessUrl) { this.frontendSuccessUrl = normalize(frontendSuccessUrl); }
 
     public String getFrontendCancelUrl() { return frontendCancelUrl; }
-    public void setFrontendCancelUrl(String frontendCancelUrl) { this.frontendCancelUrl = frontendCancelUrl; }
+    public void setFrontendCancelUrl(String frontendCancelUrl) { this.frontendCancelUrl = normalize(frontendCancelUrl); }
+
+    private String normalize(String value) {
+        return value == null ? null : value.trim();
+    }
 }
