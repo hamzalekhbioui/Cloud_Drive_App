@@ -8,5 +8,6 @@ import java.util.Optional;
 
 public interface PlanRepository extends JpaRepository<Plan, Long> {
     Optional<Plan> findBySlug(String slug);
+    Optional<Plan> findByStripePriceId(String stripePriceId);
     List<Plan> findByActiveTrueOrderByIdAsc();
 }
