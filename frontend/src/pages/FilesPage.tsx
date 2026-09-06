@@ -39,7 +39,11 @@ export default function FilesPage() {
       const data = await uploadFile(file, (pct) => setUploadProgress(pct))
       setFiles((prev) => [data, ...prev])
     } catch (err: unknown) {
-      const axiosErr = err as { response?: { data?: { message?: string } }; message?: string }
+      const axiosErr = err as { response?: { status?: number; data?: { message?: string } }; message?: string }
+      if (axiosErr.response?.status === 413) {
+        setError('This file exceeds your plan’s maximum upload size. Upgrade your plan to upload larger files.')
+        return
+      }
       const msg = axiosErr?.response?.data?.message ?? axiosErr?.message ?? 'Upload failed.'
       setError(msg)
     }

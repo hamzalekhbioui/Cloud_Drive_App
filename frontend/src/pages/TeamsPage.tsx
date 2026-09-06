@@ -73,8 +73,11 @@ export default function TeamsPage() {
     try {
       const newFile = await uploadFile(file, undefined, selected.id)
       setTeamFiles((prev) => [newFile, ...prev])
-    } catch {
-      setError('Upload failed.')
+    } catch (err: unknown) {
+      const response = (err as { response?: { status?: number; data?: { message?: string } } }).response
+      setError(response?.status === 413
+        ? 'This file exceeds your plan’s maximum upload size. Upgrade your plan to upload larger files.'
+        : response?.data?.message || 'Upload failed.')
     } finally {
       setUploading(false)
     }
@@ -89,7 +92,12 @@ export default function TeamsPage() {
       setSelected(data)
       setNewTeamName('')
       setShowCreate(false)
-    } catch { setError('Failed to create team.') }
+    } catch (err: unknown) {
+      const response = (err as { response?: { status?: number; data?: { message?: string } } }).response
+      setError(response?.status === 402
+        ? 'You have reached your plan’s team limit. Upgrade your plan to create another team.'
+        : response?.data?.message || 'Failed to create team.')
+    }
     finally { setCreating(false) }
   }
 
@@ -101,8 +109,10 @@ export default function TeamsPage() {
       setSelected({ ...selected, members: [...selected.members, data] })
       setInviteEmail('')
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg || 'Failed to invite member.')
+      const response = (e as { response?: { status?: number; data?: { message?: string } } }).response
+      setError(response?.status === 402
+        ? 'You have reached your plan’s member limit. Upgrade your plan to invite another member.'
+        : response?.data?.message || 'Failed to invite member.')
     } finally { setInviting(false) }
   }
 

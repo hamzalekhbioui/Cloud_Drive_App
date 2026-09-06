@@ -1,5 +1,10 @@
 import { useEffect, useState } from 'react'
-import { getPlans, getSubscription, type PlanDefinition, type Subscription } from '../api/subscriptions'
+import { useSearchParams } from 'react-router-dom'
+import axios from 'axios'
+import {
+  createCheckoutSession, getPlans, getSubscription,
+  type Plan, type PlanDefinition, type Subscription,
+} from '../api/subscriptions'
 import Icon from '../components/Icon'
 import { formatBytes } from '../utils/files'
 
@@ -8,8 +13,15 @@ export default function PricingPage() {
   const [plans, setPlans] = useState<PlanDefinition[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [notice, setNotice] = useState('')
+  const [checkoutPlan, setCheckoutPlan] = useState<Plan | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
 
   useEffect(() => {
+    const checkout = searchParams.get('checkout')
+    if (checkout === 'success') setNotice('Checkout returned successfully. Payment status will update after Stripe confirms it.')
+    if (checkout === 'cancelled') setNotice('Checkout was cancelled. No payment was confirmed.')
+    if (checkout) setSearchParams({}, { replace: true })
     Promise.all([getSubscription(), getPlans()])
       .then(([subscriptionResponse, plansResponse]) => {
         setSub(subscriptionResponse.data)
@@ -17,7 +29,23 @@ export default function PricingPage() {
       })
       .catch(() => setError('Failed to load subscription.'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [searchParams, setSearchParams])
+
+  async function startCheckout(plan: Plan) {
+    setCheckoutPlan(plan)
+    setError('')
+    try {
+      const { data } = await createCheckoutSession(plan)
+      window.location.assign(data.url)
+    } catch (err: unknown) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined
+      const message = axios.isAxiosError(err) ? err.response?.data?.message : undefined
+      setError(status === 402
+        ? 'This plan change requires an upgrade or payment action. Please try again from your billing settings.'
+        : message || 'Unable to start checkout.')
+      setCheckoutPlan(null)
+    }
+  }
 
   if (loading) return <div className="page-inner"><div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-3)' }}>Loading…</div></div>
 
@@ -35,6 +63,11 @@ export default function PricingPage() {
       {error && (
         <div style={{ padding: 12, background: 'color-mix(in oklab, var(--danger) 10%, var(--surface))', color: 'var(--danger)', borderRadius: 10, marginBottom: 20, fontSize: 13 }}>
           {error}
+        </div>
+      )}
+      {notice && (
+        <div style={{ padding: 12, background: 'color-mix(in oklab, var(--info) 10%, var(--surface))', color: 'var(--info)', borderRadius: 10, marginBottom: 20, fontSize: 13 }}>
+          {notice}
         </div>
       )}
       {sub && (
@@ -93,10 +126,10 @@ export default function PricingPage() {
                 <button
                   className="btn btn-accent"
                   style={{ width: '100%' }}
-                  disabled
-                  title="Billing is not available yet."
+                  disabled={checkoutPlan === plan.slug}
+                  onClick={() => void startCheckout(plan.slug)}
                 >
-                  Billing coming soon
+                  {checkoutPlan === plan.slug ? 'Opening checkout…' : 'Choose plan'}
                 </button>
               )}
             </div>

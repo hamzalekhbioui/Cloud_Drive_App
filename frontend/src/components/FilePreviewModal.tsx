@@ -78,8 +78,10 @@ export default function FilePreviewModal({ file, onClose, onDelete }: Props) {
       setAnswer({ text: data.answer, citations: data.citations })
       setQuestion('')
     } catch (err: unknown) {
-      const error = err as { response?: { data?: { message?: string } } }
-      setChatError(error.response?.data?.message ?? 'Unable to answer this question.')
+      const error = err as { response?: { status?: number; data?: { message?: string } } }
+      setChatError(error.response?.status === 402
+        ? 'You have reached your monthly AI query limit. Upgrade your plan to continue.'
+        : error.response?.data?.message ?? 'Unable to answer this question.')
     } finally { setChatLoading(false) }
   }
 

@@ -11,6 +11,11 @@ import ToggleSwitch from '../components/settings/ToggleSwitch'
 import Toast from '../components/settings/Toast'
 import type { ToastState } from '../components/settings/Toast'
 import { formatBytes } from '../utils/files'
+import {
+  cancelSubscription, createPortalSession, getSubscription, getUsage,
+  reactivateSubscription,
+} from '../api/subscriptions'
+import type { Subscription, Usage } from '../api/subscriptions'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Tiny inline SVG icons  (must be defined before SECTIONS)
@@ -33,6 +38,7 @@ const ListIcon     = () => <svg width="13" height="13" viewBox="0 0 24 24" fill=
 const CopyIcon     = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
 const CheckIcon    = () => <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="m5 12 5 5 9-11"/></svg>
 const InfoIcon     = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+const BillingIcon  = i('M3 6h18M3 10h18M5 14h4M3 18h18M5 6V4h14v2')
 
 // ── Sidebar sections ─────────────────────────────────────────────────────────
 const SECTIONS = [
@@ -40,6 +46,7 @@ const SECTIONS = [
   { id: 'security',      label: 'Security',       icon: LockIcon },
   { id: 'appearance',    label: 'Appearance',     icon: PaletteIcon },
   { id: 'storage',       label: 'Storage',        icon: StorageIcon },
+  { id: 'billing',       label: 'Billing',        icon: BillingIcon },
   { id: 'notifications', label: 'Notifications',  icon: BellIcon },
   { id: 'preferences',   label: 'Preferences',    icon: SlidersIcon },
   { id: 'advanced',      label: 'Advanced',       icon: TerminalIcon },
@@ -54,6 +61,8 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [section, setSection] = useState('profile')
   const [toast,   setToast]   = useState<ToastState | null>(null)
+  const [subscription, setSubscription] = useState<Subscription | null>(null)
+  const [usage, setUsage] = useState<Usage | null>(null)
 
   const showToast = (message: string, type: ToastState['type'] = 'success') =>
     setToast({ message, type })
@@ -63,6 +72,15 @@ export default function SettingsPage() {
       .then(({ data: d }) => setData(d))
       .catch(() => showToast('Failed to load settings.', 'error'))
       .finally(() => setLoading(false))
+  }, [])
+
+  useEffect(() => {
+    Promise.all([getSubscription(), getUsage()])
+      .then(([subscriptionResponse, usageResponse]) => {
+        setSubscription(subscriptionResponse.data)
+        setUsage(usageResponse.data)
+      })
+      .catch(() => showToast('Failed to load billing details.', 'error'))
   }, [])
 
   // Debounced preference saver
@@ -145,6 +163,12 @@ export default function SettingsPage() {
               {section === 'security'      && <SecuritySection     data={data} onSaved={() => showToast('Password updated')} onError={(m) => showToast(m, 'error')} />}
               {section === 'appearance'    && <AppearanceSection   theme={theme} density={density} onTheme={(t) => { setTheme(t); savePref({ darkMode: t === 'dark' }) }} onDensity={(d) => { setDensity(d); savePref({ density: d }) }} />}
               {section === 'storage'       && <StorageSection      data={data} onToggle={(k, v) => savePref({ [k]: v })} />}
+              {section === 'billing'       && <BillingSection subscription={subscription} usage={usage} onRefresh={() => {
+                void Promise.all([getSubscription(), getUsage()]).then(([s, u]) => {
+                  setSubscription(s.data)
+                  setUsage(u.data)
+                })
+              }} onToast={showToast} />}
               {section === 'notifications' && <NotificationsSection data={data} onToggle={(k, v) => savePref({ [k]: v })} />}
               {section === 'preferences'   && <PreferencesSection  data={data} onChange={(k, v) => savePref({ [k]: v })} />}
               {section === 'advanced'      && <AdvancedSection     data={data} onNewToken={(t) => setData({ ...data, apiToken: t })} onToggle={(k, v) => savePref({ [k]: v })} onToast={showToast} />}
@@ -437,6 +461,98 @@ function StorageSection({ data, onToggle }: {
   )
 }
 
+function BillingSection({ subscription, usage, onRefresh, onToast }: {
+  subscription: Subscription | null
+  usage: Usage | null
+  onRefresh: () => void
+  onToast: (message: string, type?: ToastState['type']) => void
+}) {
+  const [busy, setBusy] = useState<'cancel' | 'reactivate' | 'portal' | null>(null)
+
+  async function run(action: 'cancel' | 'reactivate' | 'portal') {
+    setBusy(action)
+    try {
+      if (action === 'cancel') {
+        await cancelSubscription()
+        onToast('Cancellation scheduled for the end of the current period.')
+        onRefresh()
+      } else if (action === 'reactivate') {
+        await reactivateSubscription()
+        onToast('Subscription reactivation requested.')
+        onRefresh()
+      } else {
+        const { data } = await createPortalSession()
+        window.location.assign(data.url)
+      }
+    } catch (err: unknown) {
+      const response = (err as { response?: { data?: { message?: string } } }).response
+      onToast(response?.data?.message || 'Billing action failed.', 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  if (!subscription || !usage) {
+    return <div className="sett-content"><div className="an-skel" style={{ height: 180, borderRadius: 10 }} /></div>
+  }
+
+  const periodEnd = subscription.currentPeriodEnd
+    ? new Date(subscription.currentPeriodEnd).toLocaleDateString()
+    : '—'
+  const aiLimit = usage.aiQueriesLimit < 0 ? 'Unlimited' : usage.aiQueriesLimit.toString()
+
+  return (
+    <>
+      <SectionHeader title="Billing" subtitle="Manage your subscription, payment method, and usage." />
+      {subscription.status === 'PAST_DUE' && (
+        <div className="sett-info-banner" style={{ color: 'var(--danger)' }}>
+          <InfoIcon /> Your latest payment failed. Update your payment method in the billing portal.
+        </div>
+      )}
+      <SettingsCard>
+        <SettingsRow label="Current plan" description={`${subscription.plan} · ${subscription.status.replaceAll('_', ' ')}`}>
+          <span className="sett-row-label">{subscription.billingInterval.toLowerCase()}</span>
+        </SettingsRow>
+        <div className="sett-divider" />
+        <SettingsRow label="Current period" description={`Ends ${periodEnd}`}>
+          <span />
+        </SettingsRow>
+        <div className="sett-divider" />
+        <SettingsRow
+          label="Cancellation"
+          description={subscription.cancelAtPeriodEnd ? `Scheduled at period end (${periodEnd})` : 'Your subscription renews automatically'}
+        >
+          {subscription.cancelAtPeriodEnd
+            ? <button type="button" className="btn" onClick={() => void run('reactivate')} disabled={busy !== null}>{busy === 'reactivate' ? 'Reactivating…' : 'Reactivate'}</button>
+            : <button type="button" className="btn" onClick={() => void run('cancel')} disabled={busy !== null}>{busy === 'cancel' ? 'Cancelling…' : 'Cancel at period end'}</button>}
+        </SettingsRow>
+      </SettingsCard>
+
+      <SettingsCard>
+        <div className="sett-card-sub-label">Usage this month</div>
+        <SettingsRow label="Storage" description={`${formatBytes(usage.storageUsedBytes)} of ${formatBytes(usage.storageLimitBytes)} used`}>
+          <span>{usage.usagePercent.toFixed(1)}%</span>
+        </SettingsRow>
+        <div className="sett-divider" />
+        <SettingsRow label="AI queries" description={`${usage.aiQueriesUsed} of ${aiLimit} used`}>
+          <span />
+        </SettingsRow>
+        <div style={{ marginTop: 14, height: 6, borderRadius: 3, background: 'var(--surface-3)' }}>
+          <div style={{ height: '100%', borderRadius: 3, background: 'var(--accent)', width: `${Math.min(usage.usagePercent, 100)}%` }} />
+        </div>
+      </SettingsCard>
+
+      <SettingsCard>
+        <SettingsRow label="Payment methods and invoices" description="Manage payment details securely in Stripe.">
+          <button type="button" className="btn btn-accent" onClick={() => void run('portal')} disabled={busy !== null}>
+            {busy === 'portal' ? 'Opening…' : 'Open billing portal'}
+          </button>
+        </SettingsRow>
+      </SettingsCard>
+    </>
+  )
+}
+
 // ── Notifications ────────────────────────────────────────────────────────────
 function NotificationsSection({ data, onToggle }: {
   data: SettingsData
@@ -607,4 +723,3 @@ function AdvancedSection({ data, onNewToken, onToggle, onToast }: {
     </>
   )
 }
-
