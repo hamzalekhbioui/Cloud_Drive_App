@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import Icon from '../components/Icon'
 import { useAuth } from '../context/AuthContext'
 import { useTheme } from '../context/ThemeContext'
+import { getSubscription, type Subscription } from '../api/subscriptions'
 
 const NAV = [
   { to: '/', label: 'Dashboard', icon: 'home' as const, end: true },
@@ -28,6 +29,15 @@ export default function AppShell() {
   const [collapsed, setCollapsed] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
   const [searchValue, setSearchValue] = useState(() => searchParams.get('q') ?? '')
+  const [subscription, setSubscription] = useState<Subscription | null>(null)
+
+  useEffect(() => {
+    if (!user) {
+      setSubscription(null)
+      return
+    }
+    getSubscription().then(({ data }) => setSubscription(data)).catch(() => setSubscription(null))
+  }, [user])
 
   const handleLogout = () => {
     logout()
@@ -152,6 +162,11 @@ export default function AppShell() {
           </div>
           <style>{`.mobile-menu{display:none} @media (max-width: 820px){ .mobile-menu{ display: grid !important; } }`}</style>
         </header>
+        {subscription?.status === 'PAST_DUE' && (
+          <div style={{ margin: '12px 20px 0', padding: '11px 14px', borderRadius: 10, background: 'color-mix(in oklab, var(--danger) 12%, var(--surface))', color: 'var(--danger)', border: '1px solid color-mix(in oklab, var(--danger) 30%, transparent)', fontSize: 13 }}>
+            <strong>Payment action needed:</strong> Your subscription is past due. Update your payment method in <button type="button" onClick={() => navigate('/settings')} style={{ border: 0, background: 'none', color: 'inherit', textDecoration: 'underline', cursor: 'pointer', padding: 0 }}>Settings → Billing</button>.
+          </div>
+        )}
         <div className="page">
           <Outlet />
           <footer className="page-footer">
