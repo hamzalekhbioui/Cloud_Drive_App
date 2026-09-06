@@ -84,6 +84,7 @@ public class FileService {
     @Deprecated
     @Transactional
     public FileResponseDto uploadFile(MultipartFile file, String userId) throws IOException {
+        enforceMaxFileSize(userId, file.getSize());
         subscriptionService.enforceStorageQuota(userId, file.getSize());
 
         // sanitise + validate extension before accepting
@@ -118,6 +119,7 @@ public class FileService {
             requireTeamMembership(teamId, userId);
         }
         
+        enforceMaxFileSize(userId, file.getSize());
         subscriptionService.reserveQuota(userId, file.getSize());
 
         String safeName = FilenamePolicy.sanitize(file.getOriginalFilename());
@@ -157,6 +159,7 @@ public class FileService {
             requireTeamMembership(teamId, userId);
         }
         
+        enforceMaxFileSize(userId, declaredSize);
         subscriptionService.reserveQuota(userId, declaredSize);
 
         String safeName = FilenamePolicy.sanitize(rawFileName);
@@ -329,6 +332,20 @@ public class FileService {
         teamMemberRepository.findByTeamIdAndUserEmail(teamId, userId)
                 .filter(m -> "ACTIVE".equals(m.getStatus()))
                 .orElseThrow(() -> new ApiException("Not a member of this team", HttpStatus.FORBIDDEN));
+    }
+
+    private void enforceMaxFileSize(String userId, long size) {
+        if (size < 0) {
+            throw new ApiException("File size cannot be negative", HttpStatus.BAD_REQUEST);
+        }
+        var plan = subscriptionService.getPlanForUser(userId);
+        if (plan == null) return;
+        long max = plan.getMaxFileSizeBytes();
+        if (max <= 0) return;
+        if (size > max) {
+            throw new ApiException("File exceeds the maximum size allowed by your plan.",
+                    HttpStatus.PAYLOAD_TOO_LARGE);
+        }
     }
 
     private List<FileResponseDto> refreshAndMap(List<FileEntity> entities) {
