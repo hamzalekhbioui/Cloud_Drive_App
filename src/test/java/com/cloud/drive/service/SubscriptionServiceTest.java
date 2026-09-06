@@ -17,6 +17,7 @@ import org.springframework.http.HttpStatus;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
@@ -72,5 +73,19 @@ class SubscriptionServiceTest {
                 .hasFieldOrPropertyWithValue("status", HttpStatus.CONFLICT);
 
         verify(subRepo, never()).save(any());
+    }
+
+    @Test
+    void getSubscription_autoProvisionsFreePlanWithoutStripeConfiguration() {
+        Plan free = plan("FREE", 5L * 1024 * 1024 * 1024);
+        when(subRepo.findByUserEmail(EMAIL)).thenReturn(java.util.Optional.empty());
+        when(planRepo.findBySlug("FREE")).thenReturn(java.util.Optional.of(free));
+        when(subRepo.save(any(Subscription.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        var response = subscriptionService.getSubscription(EMAIL);
+
+        assertThat(response.getPlan()).isEqualTo("FREE");
+        assertThat(response.getStatus()).isEqualTo("ACTIVE");
+        verify(subRepo).save(any(Subscription.class));
     }
 }

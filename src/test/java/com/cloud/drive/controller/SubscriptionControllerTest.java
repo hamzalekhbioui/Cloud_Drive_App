@@ -26,6 +26,6 @@ class SubscriptionControllerTest {
                         .header("Authorization", "Bearer authenticated-user-token")
                         .contentType("application/json")
                         .content("{\"plan\":\"BUSINESS\"}"))
-                .andExpect(status().isMethodNotAllowed());
+                .andExpect(status().isNotFound());
     }
 }
