@@ -4,6 +4,8 @@ import com.cloud.drive.config.StripeProperties;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.Plan;
 import com.cloud.drive.model.Subscription;
+import com.cloud.drive.dto.billing.UsageResponse;
+import com.cloud.drive.dto.subscription.SubscriptionResponse;
 import com.cloud.drive.repository.SubscriptionRepository;
 import com.stripe.exception.StripeException;
 import com.stripe.model.Customer;
@@ -132,6 +134,18 @@ public class BillingService {
         } catch (StripeException e) {
             throw stripeFailure("Unable to create billing portal session", e);
         }
+    }
+
+    public SubscriptionResponse getSubscriptionState(String userEmail) {
+        return subscriptionService.getSubscription(userEmail);
+    }
+
+    public UsageResponse getUsage(String userEmail) {
+        SubscriptionResponse subscription = subscriptionService.getSubscription(userEmail);
+        return new UsageResponse(
+                subscription.getStorageLimitBytes(),
+                subscription.getStorageUsedBytes(),
+                subscription.getUsagePercent());
     }
 
     private Subscription getOrCreateSubscription(String userEmail) {
