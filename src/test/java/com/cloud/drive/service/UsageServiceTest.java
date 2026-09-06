@@ -96,4 +96,20 @@ class UsageServiceTest {
         verify(usageRepository).save(usage);
         assertThat(usage.getUsageCount()).isEqualTo(2);
     }
+
+    @Test
+    void getUsage_usesNonLockingReadPath() {
+        when(subscriptionService.getPlanForUser("alice")).thenReturn(plan(10));
+        when(subscriptionService.getStorageUsedBytes("alice")).thenReturn(25L);
+        UsageTracking usage = new UsageTracking();
+        usage.setUsageCount(3);
+        when(usageRepository.findByUserEmailAndResourceTypeAndPeriodStart(
+                eq("alice"), eq(UsageService.AI_QUERY), any())).thenReturn(Optional.of(usage));
+
+        var response = service("2026-03-15T00:00:00Z").getUsage("alice");
+
+        assertThat(response.getAiQueriesUsed()).isEqualTo(3);
+        assertThat(response.getStorageUsedBytes()).isEqualTo(25L);
+        verify(usageRepository, never()).findForUpdate(anyString(), anyString(), any());
+    }
 }

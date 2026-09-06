@@ -56,7 +56,7 @@ public class UsageService {
         LocalDate today = LocalDate.now(clock);
         LocalDate periodStart = today.withDayOfMonth(1);
         LocalDate periodEnd = YearMonth.from(today).atEndOfMonth();
-        int used = usageRepository.findForUpdate(userEmail, AI_QUERY, periodStart)
+        int used = usageRepository.findByUserEmailAndResourceTypeAndPeriodStart(userEmail, AI_QUERY, periodStart)
                 .map(UsageTracking::getUsageCount).orElse(0);
         long storageUsed = subscriptionService.getStorageUsedBytes(userEmail);
         long storageLimit = plan.getStorageLimitBytes();
