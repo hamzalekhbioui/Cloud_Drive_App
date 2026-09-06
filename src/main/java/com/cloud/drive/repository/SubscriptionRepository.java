@@ -14,6 +14,10 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     /** Normal read — no lock. */
     Optional<Subscription> findByUserEmail(String userEmail);
 
+    Optional<Subscription> findByStripeSubscriptionId(String stripeSubscriptionId);
+
+    Optional<Subscription> findByStripeCustomerId(String stripeCustomerId);
+
     /**
      * Acquire a row-level exclusive lock (SELECT … FOR UPDATE) on the subscription.
      * The lock is held until the enclosing transaction commits, preventing concurrent
@@ -22,4 +26,9 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM Subscription s WHERE s.userEmail = :email")
     Optional<Subscription> findForUpdate(@Param("email") String email);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Subscription s WHERE s.stripeSubscriptionId = :stripeSubscriptionId")
+    Optional<Subscription> findForUpdateByStripeSubscriptionId(
+            @Param("stripeSubscriptionId") String stripeSubscriptionId);
 }

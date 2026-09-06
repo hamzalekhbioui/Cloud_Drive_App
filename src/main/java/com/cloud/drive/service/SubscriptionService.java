@@ -5,6 +5,7 @@ import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.Subscription;
 import com.cloud.drive.repository.FileRepository;
 import com.cloud.drive.model.Plan;
+import com.cloud.drive.model.SubscriptionStatus;
 import com.cloud.drive.repository.PlanRepository;
 import com.cloud.drive.repository.SubscriptionRepository;
 import org.slf4j.Logger;
@@ -37,6 +38,60 @@ public class SubscriptionService {
     public SubscriptionResponse getSubscription(String userEmail) {
         Subscription sub = subRepo.findByUserEmail(userEmail).orElseGet(() -> createFree(userEmail));
         return toResponse(sub, userEmail);
+    }
+
+    /**
+     * Applies the authoritative subscription state received from Stripe.
+     * All webhook handlers should use this method rather than mutating fields directly.
+     */
+    @Transactional
+    public Subscription applyStripeState(String stripeSubscriptionId,
+                                         SubscriptionStatus status,
+                                         LocalDateTime periodStart,
+                                         LocalDateTime periodEnd,
+                                         boolean cancelAtPeriodEnd) {
+        Subscription subscription = subRepo.findForUpdateByStripeSubscriptionId(stripeSubscriptionId)
+                .orElseThrow(() -> new ApiException("Subscription not found", HttpStatus.NOT_FOUND));
+        subscription.applyStripeState(status, periodStart, periodEnd, cancelAtPeriodEnd);
+        return subRepo.save(subscription);
+    }
+
+    @Transactional
+    public Subscription scheduleCancellation(String userEmail) {
+        Subscription subscription = findForUpdate(userEmail);
+        subscription.scheduleCancellation();
+        return subRepo.save(subscription);
+    }
+
+    @Transactional
+    public Subscription cancelImmediately(String userEmail, LocalDateTime endedAt) {
+        Subscription subscription = findForUpdate(userEmail);
+        subscription.cancelNow(endedAt);
+        return subRepo.save(subscription);
+    }
+
+    @Transactional
+    public Subscription renew(String userEmail, LocalDateTime periodStart, LocalDateTime periodEnd) {
+        Subscription subscription = findForUpdate(userEmail);
+        subscription.renew(periodStart, periodEnd);
+        return subRepo.save(subscription);
+    }
+
+    @Transactional
+    public Subscription expire(String userEmail) {
+        Subscription subscription = findForUpdate(userEmail);
+        subscription.expireAtPeriodEnd();
+        return subRepo.save(subscription);
+    }
+
+    @Transactional
+    public Subscription changePlan(String userEmail, Plan targetPlan, LocalDateTime periodStart,
+                                   LocalDateTime periodEnd, boolean cancelAtPeriodEnd) {
+        Subscription subscription = findForUpdate(userEmail);
+        validateStorageFitsPlan(subscription, targetPlan.getSlug());
+        subscription.setPlanRecord(targetPlan);
+        subscription.applyStripeState(SubscriptionStatus.ACTIVE, periodStart, periodEnd, cancelAtPeriodEnd);
+        return subRepo.save(subscription);
     }
 
     /**
@@ -175,6 +230,10 @@ public class SubscriptionService {
         r.setUsagePercent(limit > 0 ? (used * 100.0 / limit) : 0);
         r.setStartDate(sub.getStartDate());
         r.setEndDate(sub.getEndDate());
+        r.setBillingInterval(sub.getBillingInterval());
+        r.setCurrentPeriodStart(sub.getCurrentPeriodStart());
+        r.setCurrentPeriodEnd(sub.getCurrentPeriodEnd());
+        r.setCancelAtPeriodEnd(sub.isCancelAtPeriodEnd());
         return r;
     }
 
@@ -188,5 +247,10 @@ public class SubscriptionService {
     private Plan findPlanForCompatibility(String slug) {
         return planRepo.findBySlug(slug.toUpperCase())
                 .orElseThrow(() -> new ApiException("Plan not found: " + slug, HttpStatus.INTERNAL_SERVER_ERROR));
+    }
+
+    private Subscription findForUpdate(String userEmail) {
+        return subRepo.findForUpdate(userEmail)
+                .orElseThrow(() -> new ApiException("Subscription not found", HttpStatus.NOT_FOUND));
     }
 }
