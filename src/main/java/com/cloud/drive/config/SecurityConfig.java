@@ -72,6 +72,8 @@ public class SecurityConfig {
                 .dispatcherTypeMatchers(DispatcherType.ASYNC).permitAll()
                 .requestMatchers(
                     "/api/auth/**",
+                    "/api/plans",
+                    "/api/plans/**",
                     "/api/shares/public/**",
                     "/public/**",
                     "/health",

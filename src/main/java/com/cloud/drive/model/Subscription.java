@@ -7,11 +7,6 @@ import java.time.LocalDateTime;
 @Table(name = "subscriptions")
 public class Subscription {
 
-    /** Storage limits in bytes for each plan. */
-    public static final long FREE_BYTES    = 5L   * 1024 * 1024 * 1024;   // 5 GB
-    public static final long PRO_BYTES     = 50L  * 1024 * 1024 * 1024;   // 50 GB
-    public static final long BUSINESS_BYTES = 1024L * 1024 * 1024 * 1024; // 1 TB
-
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -22,6 +17,10 @@ public class Subscription {
     /** FREE, PRO, or BUSINESS */
     @Column(nullable = false)
     private String plan = "FREE";
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "plan_id", nullable = false)
+    private Plan planRecord;
 
     /** ACTIVE or CANCELLED */
     @Column(nullable = false)
@@ -43,14 +42,6 @@ public class Subscription {
 
     public Subscription() {}
 
-    public long getPlanLimitBytes() {
-        return switch (plan) {
-            case "PRO"      -> PRO_BYTES;
-            case "BUSINESS" -> BUSINESS_BYTES;
-            default         -> FREE_BYTES;
-        };
-    }
-
     /** Atomically reserves additional bytes (caller must hold the row lock). */
     public void reserve(long bytes) {
         this.usedBytes += bytes;
@@ -64,6 +55,12 @@ public class Subscription {
 
     public String getPlan() { return plan; }
     public void setPlan(String plan) { this.plan = plan; }
+
+    public Plan getPlanRecord() { return planRecord; }
+    public void setPlanRecord(Plan planRecord) {
+        this.planRecord = planRecord;
+        if (planRecord != null) this.plan = planRecord.getSlug();
+    }
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }

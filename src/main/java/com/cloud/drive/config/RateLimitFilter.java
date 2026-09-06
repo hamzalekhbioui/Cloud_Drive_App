@@ -1,6 +1,7 @@
 package com.cloud.drive.config;
 
 import com.cloud.drive.repository.SubscriptionRepository;
+import com.cloud.drive.repository.PlanRepository;
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
 import jakarta.servlet.FilterChain;
@@ -33,9 +34,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private final Map<String, BucketEntry> buckets = new ConcurrentHashMap<>();
     private final SubscriptionRepository subscriptionRepo;
+    private final PlanRepository planRepository;
 
-    public RateLimitFilter(SubscriptionRepository subscriptionRepo) {
+    public RateLimitFilter(SubscriptionRepository subscriptionRepo, PlanRepository planRepository) {
         this.subscriptionRepo = subscriptionRepo;
+        this.planRepository = planRepository;
     }
 
     @Override
@@ -81,11 +84,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
             String email = key.substring(5);
             String plan = subscriptionRepo.findByUserEmail(email)
                     .map(s -> s.getPlan()).orElse("FREE");
-            capacity = switch (plan) {
-                case "PRO"      -> 500L;
-                case "BUSINESS" -> 2000L;
-                default         -> 100L;
-            };
+            capacity = planRepository.findBySlug(plan.toUpperCase())
+                    .map(p -> p.getRateLimitPerMinute())
+                    .orElseGet(() -> planRepository.findBySlug("FREE")
+                            .map(p -> p.getRateLimitPerMinute())
+                            .orElse(100L));
         } else {
             capacity = 30L;
         }

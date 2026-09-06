@@ -1,40 +1,20 @@
 import { useEffect, useState } from 'react'
-import { getSubscription, type Subscription, type Plan } from '../api/subscriptions'
+import { getPlans, getSubscription, type PlanDefinition, type Subscription } from '../api/subscriptions'
 import Icon from '../components/Icon'
 import { formatBytes } from '../utils/files'
 
-const PLANS: { id: Plan; label: string; price: string; storage: number; features: string[] }[] = [
-  {
-    id: 'FREE',
-    label: 'Free',
-    price: '$0 / mo',
-    storage: 5 * 1024 * 1024 * 1024,
-    features: ['5 GB storage', 'File sharing', '100 req / min', 'Community support'],
-  },
-  {
-    id: 'PRO',
-    label: 'Pro',
-    price: '$9.99 / mo',
-    storage: 50 * 1024 * 1024 * 1024,
-    features: ['50 GB storage', 'File sharing + public links', '500 req / min', 'Priority support'],
-  },
-  {
-    id: 'BUSINESS',
-    label: 'Business',
-    price: '$29.99 / mo',
-    storage: 1024 * 1024 * 1024 * 1024,
-    features: ['1 TB storage', 'Teams & collaboration', '2 000 req / min', 'Dedicated support'],
-  },
-]
-
 export default function PricingPage() {
   const [sub, setSub] = useState<Subscription | null>(null)
+  const [plans, setPlans] = useState<PlanDefinition[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
   useEffect(() => {
-    getSubscription()
-      .then(({ data }) => setSub(data))
+    Promise.all([getSubscription(), getPlans()])
+      .then(([subscriptionResponse, plansResponse]) => {
+        setSub(subscriptionResponse.data)
+        setPlans(plansResponse.data)
+      })
       .catch(() => setError('Failed to load subscription.'))
       .finally(() => setLoading(false))
   }, [])
@@ -67,10 +47,15 @@ export default function PricingPage() {
       )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 20 }}>
-        {PLANS.map((plan) => {
-          const isCurrent = plan.id === currentPlan
+        {plans.map((plan) => {
+          const isCurrent = plan.slug === currentPlan
+          const price = new Intl.NumberFormat('en-US', {
+            style: 'currency',
+            currency: plan.currency,
+          }).format(plan.priceCents / 100)
+          const interval = plan.billingInterval.toLowerCase()
           return (
-            <div key={plan.id} style={{
+            <div key={plan.slug} style={{
               borderRadius: 16, padding: 24,
               border: isCurrent ? '2px solid var(--accent)' : '1px solid var(--border)',
               background: 'var(--surface-2)',
@@ -83,13 +68,18 @@ export default function PricingPage() {
               )}
 
               <div style={{ marginBottom: 4, fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--ink-3)' }}>
-                {plan.label}
+                {plan.name}
               </div>
-              <div style={{ fontFamily: 'var(--serif)', fontSize: 34, fontWeight: 700, marginBottom: 2 }}>{plan.price}</div>
-              <div style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: 20 }}>{formatBytes(plan.storage)} storage</div>
+              <div style={{ fontFamily: 'var(--serif)', fontSize: 34, fontWeight: 700, marginBottom: 2 }}>{price} / {interval}</div>
+              <div style={{ fontSize: 13, color: 'var(--ink-3)', marginBottom: 20 }}>{formatBytes(plan.storageLimitBytes)} storage</div>
 
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {plan.features.map((f) => (
+                {[
+                  `${formatBytes(plan.storageLimitBytes)} storage`,
+                  `${formatBytes(plan.maxFileSizeBytes)} max file size`,
+                  `${plan.rateLimitPerMinute.toLocaleString()} req / min`,
+                  plan.maxTeams < 0 ? 'Unlimited teams' : `${plan.maxTeams} teams`,
+                ].map((f) => (
                   <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
                     <Icon name="check" size={14} style={{ color: 'var(--accent)', flexShrink: 0 }} />
                     {f}
