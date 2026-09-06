@@ -1,6 +1,5 @@
 package com.cloud.drive.service;
 
-import com.cloud.drive.dto.subscription.ChangePlanRequest;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.Subscription;
 import com.cloud.drive.repository.FileRepository;
@@ -52,15 +51,11 @@ class SubscriptionServiceTest {
     }
 
     @Test
-    void changePlan_throwsConflict_whenDowngradeWouldExceedNewLimit() {
+    void validateStorageFitsPlan_throwsConflict_whenDowngradeWouldExceedNewLimit() {
         Subscription current = subscription("BUSINESS");
         current.setUsedBytes(Subscription.FREE_BYTES + 1);
-        when(subRepo.findByUserEmail(EMAIL)).thenReturn(Optional.of(current));
 
-        ChangePlanRequest req = new ChangePlanRequest();
-        req.setPlan("FREE");
-
-        assertThatThrownBy(() -> subscriptionService.changePlan(EMAIL, req))
+        assertThatThrownBy(() -> subscriptionService.validateStorageFitsPlan(current, "FREE"))
                 .isInstanceOf(ApiException.class)
                 .hasFieldOrPropertyWithValue("status", HttpStatus.CONFLICT);
 

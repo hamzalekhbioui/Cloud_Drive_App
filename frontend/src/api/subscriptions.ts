@@ -14,6 +14,3 @@ export interface Subscription {
 
 export const getSubscription = () =>
   client.get<Subscription>('/subscriptions')
-
-export const changePlan = (plan: Plan) =>
-  client.put<Subscription>('/subscriptions/plan', { plan })

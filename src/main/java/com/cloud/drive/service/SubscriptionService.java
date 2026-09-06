@@ -1,6 +1,5 @@
 package com.cloud.drive.service;
 
-import com.cloud.drive.dto.subscription.ChangePlanRequest;
 import com.cloud.drive.dto.subscription.SubscriptionResponse;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.Subscription;
@@ -36,29 +35,21 @@ public class SubscriptionService {
         return toResponse(sub, userEmail);
     }
 
-    @Transactional
-    public SubscriptionResponse changePlan(String userEmail, ChangePlanRequest req) {
-        Subscription sub = subRepo.findByUserEmail(userEmail).orElseGet(() -> createFree(userEmail));
-
-        if (sub.getPlan().equals(req.getPlan())) {
-            throw new ApiException("Already on the " + req.getPlan() + " plan", HttpStatus.CONFLICT);
-        }
-
-        // Downgrade guard: ensure current usage fits in the new plan limit.
+    /**
+     * Validates that a subscription can move to a target plan without losing
+     * access to files that are already stored.
+     *
+     * <p>Payment-backed plan changes should call this guard before applying a
+     * downgrade. Plan mutation is intentionally not exposed by this service.</p>
+     */
+    public void validateStorageFitsPlan(Subscription current, String targetPlan) {
         Subscription probe = new Subscription();
-        probe.setPlan(req.getPlan());
-        long newLimit = probe.getPlanLimitBytes();
-        long currentUsed = sub.getUsedBytes();
-        if (currentUsed > newLimit) {
+        probe.setPlan(targetPlan);
+        if (current.getUsedBytes() > probe.getPlanLimitBytes()) {
             throw new ApiException(
-                    "Cannot downgrade: current storage usage exceeds the " + req.getPlan() + " plan limit.",
+                    "Cannot downgrade: current storage usage exceeds the " + targetPlan + " plan limit.",
                     HttpStatus.CONFLICT);
         }
-
-        sub.setPlan(req.getPlan());
-        sub.setStartDate(LocalDateTime.now());
-        sub.setEndDate(null);
-        return toResponse(subRepo.save(sub), userEmail);
     }
 
     // ── atomic quota operations ─────────────────────────────────────────────
