@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getSubscription, changePlan, type Subscription, type Plan } from '../api/subscriptions'
+import { getSubscription, type Subscription, type Plan } from '../api/subscriptions'
 import Icon from '../components/Icon'
 import { formatBytes } from '../utils/files'
 
@@ -30,9 +30,7 @@ const PLANS: { id: Plan; label: string; price: string; storage: number; features
 export default function PricingPage() {
   const [sub, setSub] = useState<Subscription | null>(null)
   const [loading, setLoading] = useState(true)
-  const [upgrading, setUpgrading] = useState<Plan | null>(null)
   const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
 
   useEffect(() => {
     getSubscription()
@@ -40,21 +38,6 @@ export default function PricingPage() {
       .catch(() => setError('Failed to load subscription.'))
       .finally(() => setLoading(false))
   }, [])
-
-  async function handleChangePlan(plan: Plan) {
-    setError(''); setSuccess('')
-    setUpgrading(plan)
-    try {
-      const { data } = await changePlan(plan)
-      setSub(data)
-      setSuccess(`Plan changed to ${plan} successfully.`)
-    } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg || 'Failed to change plan.')
-    } finally {
-      setUpgrading(null)
-    }
-  }
 
   if (loading) return <div className="page-inner"><div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-3)' }}>Loading…</div></div>
 
@@ -74,12 +57,6 @@ export default function PricingPage() {
           {error}
         </div>
       )}
-      {success && (
-        <div style={{ padding: 12, background: 'color-mix(in oklab, var(--success, #22c55e) 10%, var(--surface))', color: 'var(--success, #22c55e)', borderRadius: 10, marginBottom: 20, fontSize: 13 }}>
-          {success}
-        </div>
-      )}
-
       {sub && (
         <div style={{ marginBottom: 28, padding: 16, borderRadius: 12, background: 'var(--surface-2)', border: '1px solid var(--border)', fontSize: 13 }}>
           <strong>Current usage:</strong> {formatBytes(sub.storageUsedBytes)} of {formatBytes(sub.storageLimitBytes)} used ({sub.usagePercent.toFixed(1)}%)
@@ -126,10 +103,10 @@ export default function PricingPage() {
                 <button
                   className="btn btn-accent"
                   style={{ width: '100%' }}
-                  onClick={() => handleChangePlan(plan.id)}
-                  disabled={upgrading !== null}
+                  disabled
+                  title="Billing is not available yet."
                 >
-                  {upgrading === plan.id ? 'Changing…' : plan.id === 'FREE' ? 'Downgrade' : 'Upgrade'}
+                  Billing coming soon
                 </button>
               )}
             </div>
