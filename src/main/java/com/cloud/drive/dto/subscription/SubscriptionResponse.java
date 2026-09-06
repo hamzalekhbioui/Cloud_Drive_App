@@ -1,5 +1,6 @@
 package com.cloud.drive.dto.subscription;
 
+import com.cloud.drive.model.BillingInterval;
 import java.time.LocalDateTime;
 
 public class SubscriptionResponse {
@@ -10,6 +11,10 @@ public class SubscriptionResponse {
     private double usagePercent;
     private LocalDateTime startDate;
     private LocalDateTime endDate;
+    private BillingInterval billingInterval;
+    private LocalDateTime currentPeriodStart;
+    private LocalDateTime currentPeriodEnd;
+    private boolean cancelAtPeriodEnd;
 
     public String getPlan() { return plan; }
     public void setPlan(String plan) { this.plan = plan; }
@@ -31,4 +36,17 @@ public class SubscriptionResponse {
 
     public LocalDateTime getEndDate() { return endDate; }
     public void setEndDate(LocalDateTime endDate) { this.endDate = endDate; }
+
+    public BillingInterval getBillingInterval() { return billingInterval; }
+    public void setBillingInterval(BillingInterval billingInterval) { this.billingInterval = billingInterval; }
+
+    public LocalDateTime getCurrentPeriodStart() { return currentPeriodStart; }
+    public void setCurrentPeriodStart(LocalDateTime currentPeriodStart) { this.currentPeriodStart = currentPeriodStart; }
+
+    public LocalDateTime getCurrentPeriodEnd() { return currentPeriodEnd; }
+    public void setCurrentPeriodEnd(LocalDateTime currentPeriodEnd) { this.currentPeriodEnd = currentPeriodEnd; }
+
+    public boolean isCancelAtPeriodEnd() { return cancelAtPeriodEnd; }
+    public void setCancelAtPeriodEnd(boolean cancelAtPeriodEnd) { this.cancelAtPeriodEnd = cancelAtPeriodEnd; }
+
 }
