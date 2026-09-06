@@ -31,6 +31,18 @@ public class AiChatService {
     private final ChatProvider chatProvider;
     private final ObjectMapper objectMapper;
     private final AiProcessingService aiProcessingService;
+    private final UsageService usageService;
+
+    public AiChatService(FileService fileService,
+                         FileAiProcessingRepository processingRepository,
+                         FileAiChunkRepository chunkRepository,
+                         FileAiChatMessageRepository messageRepository,
+                         EmbeddingProvider embeddingProvider,
+                         ChatProvider chatProvider,
+                         ObjectMapper objectMapper) {
+        this(fileService, processingRepository, chunkRepository, messageRepository,
+                embeddingProvider, chatProvider, objectMapper, null, null);
+    }
 
     public AiChatService(FileService fileService,
                          FileAiProcessingRepository processingRepository,
@@ -40,6 +52,20 @@ public class AiChatService {
                          ChatProvider chatProvider,
                          ObjectMapper objectMapper,
                          AiProcessingService aiProcessingService) {
+        this(fileService, processingRepository, chunkRepository, messageRepository,
+                embeddingProvider, chatProvider, objectMapper, aiProcessingService, null);
+    }
+
+    @org.springframework.beans.factory.annotation.Autowired
+    public AiChatService(FileService fileService,
+                         FileAiProcessingRepository processingRepository,
+                         FileAiChunkRepository chunkRepository,
+                         FileAiChatMessageRepository messageRepository,
+                         EmbeddingProvider embeddingProvider,
+                         ChatProvider chatProvider,
+                         ObjectMapper objectMapper,
+                         AiProcessingService aiProcessingService,
+                         UsageService usageService) {
         this.fileService = fileService;
         this.processingRepository = processingRepository;
         this.chunkRepository = chunkRepository;
@@ -48,6 +74,7 @@ public class AiChatService {
         this.chatProvider = chatProvider;
         this.objectMapper = objectMapper;
         this.aiProcessingService = aiProcessingService;
+        this.usageService = usageService;
     }
 
     public AiStatusDto status(Long fileId, String userId) {
@@ -73,6 +100,7 @@ public class AiChatService {
         if (!embeddingProvider.isConfigured() || !chatProvider.isConfigured()) {
             throw new ApiException("AI chat is not configured.", HttpStatus.SERVICE_UNAVAILABLE);
         }
+        if (usageService != null) usageService.consumeAiQuery(userId);
         float[] query = embeddingProvider.embed(message);
         List<FileAiChunk> candidates = chunkRepository.findByFileIdAndEmbeddingJsonIsNotNullOrderByChunkIndexAsc(fileId);
         List<ChunkMatch> matches = candidates.stream()

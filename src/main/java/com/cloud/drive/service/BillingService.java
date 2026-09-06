@@ -28,15 +28,18 @@ public class BillingService {
     private final PlanService planService;
     private final SubscriptionRepository subscriptionRepository;
     private final SubscriptionService subscriptionService;
+    private final UsageService usageService;
 
     public BillingService(StripeProperties stripeProperties,
                           PlanService planService,
                           SubscriptionRepository subscriptionRepository,
-                          SubscriptionService subscriptionService) {
+                          SubscriptionService subscriptionService,
+                          UsageService usageService) {
         this.stripeProperties = stripeProperties;
         this.planService = planService;
         this.subscriptionRepository = subscriptionRepository;
         this.subscriptionService = subscriptionService;
+        this.usageService = usageService;
     }
 
     @Transactional
@@ -141,11 +144,7 @@ public class BillingService {
     }
 
     public UsageResponse getUsage(String userEmail) {
-        SubscriptionResponse subscription = subscriptionService.getSubscription(userEmail);
-        return new UsageResponse(
-                subscription.getStorageLimitBytes(),
-                subscription.getStorageUsedBytes(),
-                subscription.getUsagePercent());
+        return usageService.getUsage(userEmail);
     }
 
     private Subscription getOrCreateSubscription(String userEmail) {

@@ -8,6 +8,7 @@ import com.cloud.drive.repository.TeamMemberRepository;
 import com.cloud.drive.repository.TeamRepository;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -24,14 +25,27 @@ public class TeamService {
 
     private final TeamRepository teamRepo;
     private final TeamMemberRepository memberRepo;
+    private final SubscriptionService subscriptionService;
 
     public TeamService(TeamRepository teamRepo, TeamMemberRepository memberRepo) {
+        this(teamRepo, memberRepo, null);
+    }
+
+    @Autowired
+    public TeamService(TeamRepository teamRepo, TeamMemberRepository memberRepo,
+                       SubscriptionService subscriptionService) {
         this.teamRepo = teamRepo;
         this.memberRepo = memberRepo;
+        this.subscriptionService = subscriptionService;
     }
 
     @Transactional
     public TeamResponse createTeam(String ownerEmail, CreateTeamRequest req) {
+        int maxTeams = subscriptionService == null ? -1 : subscriptionService.getPlanForUser(ownerEmail).getMaxTeams();
+        if (maxTeams >= 0 && teamRepo.findByOwnerEmail(ownerEmail).size() >= maxTeams) {
+            throw new ApiException("Your plan does not allow another team. Upgrade to create more teams.",
+                    HttpStatus.PAYMENT_REQUIRED);
+        }
         Team team = new Team();
         team.setName(req.getName().trim());
         team.setOwnerEmail(ownerEmail);
@@ -84,6 +98,15 @@ public class TeamService {
         requireRoleAtLeast(teamId, callerEmail, "ADMIN");
         if (memberRepo.existsByTeamIdAndUserEmail(teamId, req.getEmail())) {
             throw new ApiException("User is already a member or has a pending invite", HttpStatus.CONFLICT);
+        }
+        String planOwner = teamRepo.findById(teamId).map(Team::getOwnerEmail).orElse(callerEmail);
+        int maxMembers = subscriptionService == null ? -1
+                : subscriptionService.getPlanForUser(planOwner).getMaxTeamMembers();
+        if (maxMembers >= 0 && memberRepo.findByTeamId(teamId).stream()
+                .filter(member -> "ACTIVE".equals(member.getStatus()) || "PENDING".equals(member.getStatus()))
+                .count() >= maxMembers) {
+            throw new ApiException("This team has reached your plan's member limit. Upgrade to add more members.",
+                    HttpStatus.PAYMENT_REQUIRED);
         }
         TeamMember member = new TeamMember();
         member.setTeamId(teamId);

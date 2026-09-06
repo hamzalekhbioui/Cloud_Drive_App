@@ -184,6 +184,18 @@ public class SubscriptionService {
                         .orElseThrow(() -> new ApiException("FREE plan is not configured", HttpStatus.INTERNAL_SERVER_ERROR)));
     }
 
+    @Transactional
+    public Plan getPlanForUser(String userEmail) {
+        Subscription subscription = subRepo.findByUserEmail(userEmail)
+                .orElseGet(() -> createFree(userEmail));
+        return resolvePlan(subscription);
+    }
+
+    @Transactional(readOnly = true)
+    public long getStorageUsedBytes(String userEmail) {
+        return subRepo.findByUserEmail(userEmail).map(Subscription::getUsedBytes).orElse(0L);
+    }
+
     // ── periodic reconciliation ─────────────────────────────────────────────
 
     /**

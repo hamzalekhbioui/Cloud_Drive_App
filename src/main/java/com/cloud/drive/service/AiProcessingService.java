@@ -31,6 +31,11 @@ import java.util.List;
 
 @Service
 public class AiProcessingService {
+    /*
+     * File indexing is a separate asynchronous product operation and does not
+     * consume the monthly interactive AI query allowance. Only chat requests
+     * are counted by UsageService, so failed indexing cannot consume queries.
+     */
     public static final String PENDING = "PENDING";
     public static final String PROCESSING = "PROCESSING";
     public static final String COMPLETED = "COMPLETED";
