@@ -18,4 +18,7 @@ public interface UsageTrackingRepository extends JpaRepository<UsageTracking, Lo
     Optional<UsageTracking> findForUpdate(@Param("email") String email,
                                           @Param("resourceType") String resourceType,
                                           @Param("periodStart") LocalDate periodStart);
+
+    Optional<UsageTracking> findByUserEmailAndResourceTypeAndPeriodStart(
+            String userEmail, String resourceType, LocalDate periodStart);
 }
