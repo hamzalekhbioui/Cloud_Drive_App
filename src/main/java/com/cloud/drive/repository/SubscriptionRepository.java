@@ -28,6 +28,10 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     Optional<Subscription> findForUpdate(@Param("email") String email);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT s FROM Subscription s WHERE s.stripeCustomerId = :customerId")
+    Optional<Subscription> findForUpdateByStripeCustomerId(@Param("customerId") String customerId);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT s FROM Subscription s WHERE s.stripeSubscriptionId = :stripeSubscriptionId")
     Optional<Subscription> findForUpdateByStripeSubscriptionId(
             @Param("stripeSubscriptionId") String stripeSubscriptionId);

@@ -64,6 +64,13 @@ public class SubscriptionService {
     }
 
     @Transactional
+    public Subscription reactivate(String userEmail) {
+        Subscription subscription = findForUpdate(userEmail);
+        subscription.undoScheduledCancellation();
+        return subRepo.save(subscription);
+    }
+
+    @Transactional
     public Subscription cancelImmediately(String userEmail, LocalDateTime endedAt) {
         Subscription subscription = findForUpdate(userEmail);
         subscription.cancelNow(endedAt);

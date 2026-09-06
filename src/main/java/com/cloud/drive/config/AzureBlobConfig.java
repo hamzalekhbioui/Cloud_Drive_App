@@ -14,7 +14,7 @@ import com.cloud.drive.storage.UnavailableStorageService;
 import java.util.Optional;
 
 @Configuration
-@EnableConfigurationProperties(AzureOpenAiProperties.class)
+@EnableConfigurationProperties({AzureOpenAiProperties.class, StripeProperties.class})
 public class AzureBlobConfig {
 
     @Bean
