@@ -53,11 +53,17 @@ public class PlanService {
     }
 
     private void updateStripePriceId(String slug, String configuredId) {
-        if (configuredId == null || configuredId.isBlank()) return;
+        if (!isUsableStripePriceId(configuredId)) return;
         planRepository.findBySlug(slug).ifPresent(plan -> {
             plan.setStripePriceId(configuredId);
             planRepository.save(plan);
         });
+    }
+
+    private boolean isUsableStripePriceId(String value) {
+        return value != null
+                && !value.isBlank()
+                && !"price_replace_me".equalsIgnoreCase(value.trim());
     }
 
     private PlanResponse toResponse(Plan plan) {

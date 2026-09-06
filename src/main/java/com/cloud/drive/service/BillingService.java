@@ -50,7 +50,9 @@ public class BillingService {
         if ("FREE".equals(plan.getSlug())) {
             throw new ApiException("FREE does not require checkout", HttpStatus.BAD_REQUEST);
         }
-        if (plan.getStripePriceId() == null || plan.getStripePriceId().isBlank()) {
+        if (plan.getStripePriceId() == null
+                || plan.getStripePriceId().isBlank()
+                || "price_replace_me".equalsIgnoreCase(plan.getStripePriceId().trim())) {
             throw new ApiException("Stripe price is not configured for " + plan.getSlug(),
                     HttpStatus.SERVICE_UNAVAILABLE);
         }
