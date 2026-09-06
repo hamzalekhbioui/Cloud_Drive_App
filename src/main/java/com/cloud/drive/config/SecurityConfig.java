@@ -74,6 +74,7 @@ public class SecurityConfig {
                     "/api/auth/**",
                     "/api/plans",
                     "/api/plans/**",
+                    "/api/webhooks/stripe",
                     "/api/shares/public/**",
                     "/public/**",
                     "/health",

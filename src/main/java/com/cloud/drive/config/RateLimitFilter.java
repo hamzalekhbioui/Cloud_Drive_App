@@ -45,6 +45,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain chain) throws ServletException, IOException {
+        if ("/api/webhooks/stripe".equals(request.getRequestURI())) {
+            chain.doFilter(request, response);
+            return;
+        }
 
         String key = resolveKey(request);
         Bucket bucket = getOrRefresh(key);
