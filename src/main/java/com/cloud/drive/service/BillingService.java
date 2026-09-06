@@ -15,6 +15,8 @@ import com.stripe.param.CustomerCreateParams;
 import com.stripe.param.SubscriptionUpdateParams;
 import com.stripe.param.checkout.SessionCreateParams;
 import org.springframework.http.HttpStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,6 +25,7 @@ import java.nio.charset.StandardCharsets;
 
 @Service
 public class BillingService {
+    private static final Logger log = LoggerFactory.getLogger(BillingService.class);
 
     private final StripeProperties stripeProperties;
     private final PlanService planService;
@@ -200,6 +203,9 @@ public class BillingService {
     }
 
     private ApiException stripeFailure(String message, StripeException cause) {
+        log.error("stripe_billing_failed operation={} errorType={} code={} requestId={} message={}",
+                message, cause.getClass().getSimpleName(), cause.getCode(),
+                cause.getRequestId(), cause.getMessage(), cause);
         return new ApiException(message, HttpStatus.BAD_GATEWAY);
     }
 }
