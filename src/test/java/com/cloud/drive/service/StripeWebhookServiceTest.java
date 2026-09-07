@@ -115,13 +115,16 @@ class StripeWebhookServiceTest {
     void invoicePaidRecordsPaymentAndActivatesSubscription() {
         String payload = event("evt_paid", "invoice.paid",
                 "{\"id\":\"in_paid\",\"subscription\":\"sub_test\",\"payment_intent\":\"pi_1\","
-                        + "\"amount_paid\":999,\"currency\":\"usd\"}");
+                        + "\"amount_paid\":999,\"currency\":\"usd\","
+                        + "\"lines\":{\"data\":[{\"period\":{\"start\":1788220800,\"end\":1790812800}}]}}");
         when(subscriptionRepository.findForUpdateByStripeSubscriptionId("sub_test"))
                 .thenReturn(Optional.of(subscription));
 
         service.receive(payload, signature(payload));
 
         assertThat(subscription.getStatusValue()).isEqualTo(SubscriptionStatus.ACTIVE);
+        assertThat(subscription.getCurrentPeriodStart()).isNotNull();
+        assertThat(subscription.getCurrentPeriodEnd()).isNotNull();
         verify(paymentRepository).save(argThat(payment -> payment.getStatus().equals("PAID")
                 && payment.getStripeInvoiceId().equals("in_paid")));
     }

@@ -12,8 +12,7 @@ import Toast from '../components/settings/Toast'
 import type { ToastState } from '../components/settings/Toast'
 import { formatBytes } from '../utils/files'
 import {
-  cancelSubscription, createPortalSession, getSubscription, getUsage,
-  reactivateSubscription,
+  cancelSubscription, getSubscription, getUsage, reactivateSubscription,
 } from '../api/subscriptions'
 import type { Subscription, Usage } from '../api/subscriptions'
 
@@ -467,9 +466,9 @@ function BillingSection({ subscription, usage, onRefresh, onToast }: {
   onRefresh: () => void
   onToast: (message: string, type?: ToastState['type']) => void
 }) {
-  const [busy, setBusy] = useState<'cancel' | 'reactivate' | 'portal' | null>(null)
+  const [busy, setBusy] = useState<'cancel' | 'reactivate' | null>(null)
 
-  async function run(action: 'cancel' | 'reactivate' | 'portal') {
+  async function run(action: 'cancel' | 'reactivate') {
     setBusy(action)
     try {
       if (action === 'cancel') {
@@ -480,9 +479,6 @@ function BillingSection({ subscription, usage, onRefresh, onToast }: {
         await reactivateSubscription()
         onToast('Subscription reactivation requested.')
         onRefresh()
-      } else {
-        const { data } = await createPortalSession()
-        window.location.assign(data.url)
       }
     } catch (err: unknown) {
       const response = (err as { response?: { data?: { message?: string } } }).response
@@ -496,9 +492,13 @@ function BillingSection({ subscription, usage, onRefresh, onToast }: {
     return <div className="sett-content"><div className="an-skel" style={{ height: 180, borderRadius: 10 }} /></div>
   }
 
-  const periodEnd = subscription.currentPeriodEnd
-    ? new Date(subscription.currentPeriodEnd).toLocaleDateString()
-    : '—'
+  const renewalDate = subscription.currentPeriodEnd
+    ? new Date(subscription.currentPeriodEnd).toLocaleDateString(undefined, {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })
+    : null
   const aiLimit = usage.aiQueriesLimit < 0 ? 'Unlimited' : usage.aiQueriesLimit.toString()
 
   return (
@@ -514,13 +514,18 @@ function BillingSection({ subscription, usage, onRefresh, onToast }: {
           <span className="sett-row-label">{subscription.billingInterval.toLowerCase()}</span>
         </SettingsRow>
         <div className="sett-divider" />
-        <SettingsRow label="Current period" description={`Ends ${periodEnd}`}>
+        <SettingsRow
+          label={subscription.cancelAtPeriodEnd ? 'Access ends on' : 'Renews on'}
+          description={renewalDate ?? 'Renewal date will appear after Stripe confirms the subscription.'}
+        >
           <span />
         </SettingsRow>
         <div className="sett-divider" />
         <SettingsRow
           label="Cancellation"
-          description={subscription.cancelAtPeriodEnd ? `Scheduled at period end (${periodEnd})` : 'Your subscription renews automatically'}
+          description={subscription.cancelAtPeriodEnd
+            ? renewalDate ? `Scheduled for ${renewalDate}` : 'Scheduled at the end of the current period'
+            : 'Your subscription renews automatically'}
         >
           {subscription.cancelAtPeriodEnd
             ? <button type="button" className="btn" onClick={() => void run('reactivate')} disabled={busy !== null}>{busy === 'reactivate' ? 'Reactivating…' : 'Reactivate'}</button>
@@ -542,13 +547,6 @@ function BillingSection({ subscription, usage, onRefresh, onToast }: {
         </div>
       </SettingsCard>
 
-      <SettingsCard>
-        <SettingsRow label="Payment methods and invoices" description="Manage payment details securely in Stripe.">
-          <button type="button" className="btn btn-accent" onClick={() => void run('portal')} disabled={busy !== null}>
-            {busy === 'portal' ? 'Opening…' : 'Open billing portal'}
-          </button>
-        </SettingsRow>
-      </SettingsCard>
     </>
   )
 }
