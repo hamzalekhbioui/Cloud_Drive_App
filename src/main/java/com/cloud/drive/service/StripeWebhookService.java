@@ -53,11 +53,16 @@ public class StripeWebhookService {
         if (properties.getWebhookSecret() == null || properties.getWebhookSecret().isBlank()) {
             throw new ApiException("Stripe webhook is not configured", HttpStatus.SERVICE_UNAVAILABLE);
         }
+        if (signature == null || signature.isBlank()) {
+            log.warn("stripe_webhook_signature_rejected reason=missing_signature");
+            throw new ApiException("Missing Stripe webhook signature", HttpStatus.BAD_REQUEST);
+        }
         final Event event;
         try {
             event = Webhook.constructEvent(payload, signature, properties.getWebhookSecret());
         } catch (SignatureVerificationException | IllegalArgumentException e) {
-            log.warn("stripe_webhook_signature_rejected errorType={}", e.getClass().getSimpleName());
+            log.warn("stripe_webhook_signature_rejected errorType={} message={}",
+                    e.getClass().getSimpleName(), safeMessage(e));
             throw new ApiException("Invalid Stripe webhook signature", HttpStatus.BAD_REQUEST);
         }
 
