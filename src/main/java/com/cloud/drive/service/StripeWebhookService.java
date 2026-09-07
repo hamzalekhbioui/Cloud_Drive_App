@@ -155,8 +155,18 @@ public class StripeWebhookService {
 
     private void invoicePaid(JsonNode invoice) {
         Subscription subscription = subscriptionForInvoice(invoice);
+        LocalDateTime periodStart = firstNonNull(
+                epoch(text(invoice, "period_start")),
+                epoch(text(invoice.path("lines").path("data").path(0), "period_start")),
+                epoch(text(invoice.path("lines").path("data").path(0).path("period"), "start")));
+        LocalDateTime periodEnd = firstNonNull(
+                epoch(text(invoice, "period_end")),
+                epoch(text(invoice.path("lines").path("data").path(0), "period_end")),
+                epoch(text(invoice.path("lines").path("data").path(0).path("period"), "end")));
         subscription.applyStripeState(SubscriptionStatus.ACTIVE,
-                subscription.getCurrentPeriodStart(), subscription.getCurrentPeriodEnd(), false);
+                periodStart != null ? periodStart : subscription.getCurrentPeriodStart(),
+                periodEnd != null ? periodEnd : subscription.getCurrentPeriodEnd(),
+                false);
         subscriptionRepository.save(subscription);
         savePayment(invoice, subscription, "PAID");
     }
@@ -244,5 +254,9 @@ public class StripeWebhookService {
 
     private String safeMessage(Exception error) {
         return error.getMessage() == null ? "no message" : error.getMessage();
+    }
+
+    private <T> T firstNonNull(T first, T second, T third) {
+        return first != null ? first : second != null ? second : third;
     }
 }

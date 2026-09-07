@@ -66,4 +66,50 @@ describe('Settings billing', () => {
     expect(screen.getByText(/10 KB of 49 KB used/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Reactivate' })).toBeInTheDocument()
   })
+
+  it('renders the authoritative renewal date for an active subscription', async () => {
+    vi.mocked(subscriptionsApi.getSubscription).mockResolvedValue({
+      data: {
+        plan: 'PRO', status: 'ACTIVE', storageLimitBytes: 50_000, storageUsedBytes: 10_000,
+        usagePercent: 20, startDate: '2026-01-01T00:00:00', endDate: null,
+        billingInterval: 'MONTH', currentPeriodStart: '2026-09-01T00:00:00',
+        currentPeriodEnd: '2026-10-01T00:00:00', cancelAtPeriodEnd: false,
+      },
+    } as never)
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ThemeProvider><SettingsPage /></ThemeProvider>
+        </AuthProvider>
+      </MemoryRouter>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: 'Billing' }))
+
+    expect(await screen.findByText('Renews on')).toBeInTheDocument()
+    expect(screen.getByText(/October 1, 2026/)).toBeInTheDocument()
+    expect(screen.getByText('Your subscription renews automatically')).toBeInTheDocument()
+  })
+
+  it('explains when Stripe has not supplied a renewal date yet', async () => {
+    vi.mocked(subscriptionsApi.getSubscription).mockResolvedValue({
+      data: {
+        plan: 'FREE', status: 'ACTIVE', storageLimitBytes: 5_000, storageUsedBytes: 0,
+        usagePercent: 0, startDate: '2026-01-01T00:00:00', endDate: null,
+        billingInterval: 'MONTH', currentPeriodStart: null,
+        currentPeriodEnd: null, cancelAtPeriodEnd: false,
+      },
+    } as never)
+
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ThemeProvider><SettingsPage /></ThemeProvider>
+        </AuthProvider>
+      </MemoryRouter>,
+    )
+    await userEvent.click(await screen.findByRole('button', { name: 'Billing' }))
+
+    expect(await screen.findByText(/Renewal date will appear after Stripe confirms/i)).toBeInTheDocument()
+  })
 })
