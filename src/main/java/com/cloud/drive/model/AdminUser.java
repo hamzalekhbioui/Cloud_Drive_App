@@ -4,12 +4,11 @@ import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "users")
-public class User {
+@Table(name = "admin_users")
+public class AdminUser {
 
     public static final String STATUS_ACTIVE = "ACTIVE";
     public static final String STATUS_DISABLED = "DISABLED";
-    public static final String STATUS_DELETED = "DELETED";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -18,25 +17,21 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
-    @Column(nullable = true)
+    @Column(nullable = false)
     private String password;
 
     @Column(nullable = false)
     private String name;
 
-    /** ACTIVE | DISABLED | DELETED — enforced by {@code JwtAuthFilter} on every tenant request. */
     @Column(nullable = false, length = 32)
     private String status = STATUS_ACTIVE;
 
-    /** Tokens issued before this instant are rejected (stateless force-logout). */
-    private LocalDateTime tokensValidFrom;
-
     private LocalDateTime createdAt;
 
-    /** Updated on every successful password-based login. */
+    /** Updated on every successful admin login. */
     private LocalDateTime lastLogin;
 
-    public User() {}
+    public AdminUser() {}
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -52,9 +47,6 @@ public class User {
 
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
-
-    public LocalDateTime getTokensValidFrom() { return tokensValidFrom; }
-    public void setTokensValidFrom(LocalDateTime tokensValidFrom) { this.tokensValidFrom = tokensValidFrom; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
