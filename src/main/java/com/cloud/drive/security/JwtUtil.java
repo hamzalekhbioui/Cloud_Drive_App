@@ -77,6 +77,15 @@ public class JwtUtil {
                 .getSubject();
     }
 
+    public Date extractIssuedAt(String token) {
+        return Jwts.parser()
+                .verifyWith(signingKey())
+                .build()
+                .parseSignedClaims(token)
+                .getPayload()
+                .getIssuedAt();
+    }
+
     public boolean isValid(String token) {
         try {
             Jwts.parser().verifyWith(signingKey()).build().parseSignedClaims(token);

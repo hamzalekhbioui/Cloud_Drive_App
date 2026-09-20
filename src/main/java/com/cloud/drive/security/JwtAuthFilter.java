@@ -1,5 +1,7 @@
 package com.cloud.drive.security;
 
+import com.cloud.drive.model.User;
+import com.cloud.drive.repository.UserRepository;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,10 +22,13 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
     private final JwtUtil jwtUtil;
     private final UserDetailsService userDetailsService;
+    private final UserRepository userRepository;
 
-    public JwtAuthFilter(JwtUtil jwtUtil, UserDetailsService userDetailsService) {
+    public JwtAuthFilter(JwtUtil jwtUtil, UserDetailsService userDetailsService,
+                         UserRepository userRepository) {
         this.jwtUtil = jwtUtil;
         this.userDetailsService = userDetailsService;
+        this.userRepository = userRepository;
     }
 
     @Override
@@ -40,6 +45,15 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         if (jwtUtil.isValid(token) && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
                 String email = jwtUtil.extractEmail(token);
+                User user = userRepository.findByEmail(email)
+                        .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
+                if (!User.STATUS_ACTIVE.equals(user.getStatus())
+                        || (user.getTokensValidFrom() != null
+                        && jwtUtil.extractIssuedAt(token).toInstant().isBefore(
+                        user.getTokensValidFrom().atZone(java.time.ZoneId.systemDefault()).toInstant()))) {
+                    chain.doFilter(request, response);
+                    return;
+                }
                 UserDetails userDetails = userDetailsService.loadUserByUsername(email);
                 UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                         userDetails, null, userDetails.getAuthorities());
