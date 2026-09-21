@@ -7,8 +7,28 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 public interface FileRepository extends JpaRepository<FileEntity, Long> {
+    @Query("""
+            SELECT f FROM FileEntity f
+            WHERE (:owner IS NULL OR LOWER(f.userId) LIKE LOWER(CONCAT('%', :owner, '%')))
+              AND (:status IS NULL OR f.status = :status)
+              AND (:type IS NULL OR LOWER(f.type) LIKE LOWER(CONCAT('%', :type, '%')))
+              AND (:minSize IS NULL OR f.size >= :minSize)
+              AND (:maxSize IS NULL OR f.size <= :maxSize)
+              AND (:fromDate IS NULL OR f.createdAt >= :fromDate)
+              AND (:toDate IS NULL OR f.createdAt <= :toDate)
+            """)
+    Page<FileEntity> findAllForAdmin(@Param("owner") String owner,
+                                     @Param("status") String status,
+                                     @Param("type") String type,
+                                     @Param("minSize") Long minSize,
+                                     @Param("maxSize") Long maxSize,
+                                     @Param("fromDate") LocalDateTime fromDate,
+                                     @Param("toDate") LocalDateTime toDate,
+                                     Pageable pageable);
 
     // ── existing queries ────────────────────────────────────────────────────
     List<FileEntity> findByUserIdAndDeletedAtIsNull(String userId);
