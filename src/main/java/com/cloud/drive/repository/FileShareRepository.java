@@ -11,4 +11,7 @@ public interface FileShareRepository extends JpaRepository<FileShare, Long> {
     List<FileShare> findBySharedWithEmail(String email);
     boolean existsByFileIdAndSharedWithEmail(Long fileId, String email);
     void deleteByFileIdAndOwnerEmail(Long fileId, String ownerEmail);
+    long countByRevokedAtIsNull();
+    long countBySharedWithEmailIsNullAndRevokedAtIsNull();
+    long countBySharedWithEmailIsNotNullAndRevokedAtIsNull();
 }

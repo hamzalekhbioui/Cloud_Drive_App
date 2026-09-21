@@ -35,6 +35,21 @@ public interface FileRepository extends JpaRepository<FileEntity, Long> {
     /** Count of active files for a user. */
     long countByUserIdAndDeletedAtIsNull(String userId);
 
+    long countByDeletedAtIsNull();
+    long countByDeletedAtIsNotNull();
+
+    @Query("SELECT COALESCE(SUM(f.size), 0) FROM FileEntity f WHERE f.deletedAt IS NULL")
+    Long sumSizeByActiveFiles();
+
+    @Query("SELECT FUNCTION('DATE', f.createdAt), COUNT(f), COALESCE(SUM(f.size), 0) FROM FileEntity f WHERE f.createdAt >= :since AND f.deletedAt IS NULL GROUP BY FUNCTION('DATE', f.createdAt) ORDER BY FUNCTION('DATE', f.createdAt)")
+    List<Object[]> countUploadsByDateSince(@Param("since") LocalDateTime since);
+
+    @Query("SELECT f.type, COALESCE(SUM(f.size), 0) FROM FileEntity f WHERE f.deletedAt IS NULL GROUP BY f.type")
+    List<Object[]> sumActiveSizeGroupedByType();
+
+    @Query("SELECT s.plan, COALESCE(SUM(f.size), 0) FROM FileEntity f, Subscription s WHERE s.userEmail = f.userId AND f.deletedAt IS NULL GROUP BY s.plan ORDER BY s.plan")
+    List<Object[]> sumActiveSizeGroupedByPlan();
+
     /**
      * Returns [mimeType, sumOfBytes] pairs grouped by MIME type so the
      * service layer can categorise them without loading full entities.

@@ -37,13 +37,13 @@ function labelFmt(date: string) {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-export default function ActivityChart({ data }: { data: ActivityItem[] }) {
+export default function ActivityChart({ data, showSignups = false }: { data: ActivityItem[]; showSignups?: boolean }) {
   return (
     <motion.div className="an-card an-wide"
       initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, delay: 0.2 }}
     >
-      <div className="an-card-label">Upload Activity — last 30 days</div>
+      <div className="an-card-label">{showSignups ? 'Platform Growth — last 30 days' : 'Upload Activity — last 30 days'}</div>
       <ResponsiveContainer width="100%" height={200}>
         <AreaChart data={data} margin={{ top: 4, right: 8, left: 0, bottom: 0 }}>
           <defs>
@@ -66,6 +66,11 @@ export default function ActivityChart({ data }: { data: ActivityItem[] }) {
           {/* hidden area for fileCount so tooltip can read it */}
           <Area type="monotone" dataKey="fileCount"
             stroke="transparent" fill="transparent" dot={false} />
+          {showSignups && (
+            <Area type="monotone" dataKey="signups"
+              stroke="#8B5CF6" strokeWidth={2} fill="transparent"
+              dot={false} activeDot={{ r: 4, fill: '#8B5CF6' }} />
+          )}
         </AreaChart>
       </ResponsiveContainer>
     </motion.div>
