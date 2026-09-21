@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.List;
 
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
 
@@ -17,6 +18,9 @@ public interface SubscriptionRepository extends JpaRepository<Subscription, Long
     Optional<Subscription> findByStripeSubscriptionId(String stripeSubscriptionId);
 
     Optional<Subscription> findByStripeCustomerId(String stripeCustomerId);
+
+    @Query("SELECT s.plan, COUNT(s) FROM Subscription s WHERE s.status IN (com.cloud.drive.model.SubscriptionStatus.ACTIVE, com.cloud.drive.model.SubscriptionStatus.TRIALING) GROUP BY s.plan ORDER BY s.plan")
+    List<Object[]> countActiveByPlan();
 
     /**
      * Acquire a row-level exclusive lock (SELECT … FOR UPDATE) on the subscription.

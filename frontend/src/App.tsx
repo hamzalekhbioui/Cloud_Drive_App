@@ -23,7 +23,7 @@ const TeamsPage = lazy(() => import('./pages/TeamsPage'))
 const PricingPage = lazy(() => import('./pages/PricingPage'))
 const PublicSharePage = lazy(() => import('./pages/PublicSharePage'))
 const AdminLoginPage = lazy(() => import('./admin/pages/AdminLoginPage'))
-const AdminDashboardPage = lazy(() => import('./admin/pages/AdminDashboardPage'))
+const AdminOverviewPage = lazy(() => import('./admin/pages/AdminOverviewPage'))
 
 function RouteMeta() {
   const { pathname } = useLocation()
@@ -126,11 +126,11 @@ export default function App() {
                     </AdminRoute>
                   }
                 >
-                  <Route path="/admin" element={<AdminDashboardPage />} />
-                  <Route path="/admin/users" element={<AdminDashboardPage />} />
-                  <Route path="/admin/files" element={<AdminDashboardPage />} />
-                  <Route path="/admin/settings" element={<AdminDashboardPage />} />
-                  <Route path="/admin/*" element={<AdminDashboardPage />} />
+                  <Route path="/admin" element={<AdminOverviewPage />} />
+                  <Route path="/admin/users" element={<AdminOverviewPage />} />
+                  <Route path="/admin/files" element={<AdminOverviewPage />} />
+                  <Route path="/admin/settings" element={<AdminOverviewPage />} />
+                  <Route path="/admin/*" element={<AdminOverviewPage />} />
                 </Route>
                 <Route path="*" element={<Navigate to="/" replace />} />
               </Routes>

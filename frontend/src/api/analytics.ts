@@ -25,8 +25,9 @@ export interface LargestFile {
 
 export interface ActivityItem {
   date: string
-  size: number
-  count: number
+  totalUploadedSize: number
+  fileCount: number
+  signups?: number
 }
 
 export interface Insight {
