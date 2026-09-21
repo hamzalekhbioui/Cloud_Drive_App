@@ -5,6 +5,9 @@ import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import PrivateRoute from './components/PrivateRoute'
 import AppShell from './components/AppShell'
+import { AdminAuthProvider } from './admin/context/AdminAuthContext'
+import AdminRoute from './admin/components/AdminRoute'
+import AdminShell from './admin/components/AdminShell'
 import { pingBackend } from './api/health'
 
 const LoginPage = lazy(() => import('./pages/LoginPage'))
@@ -19,6 +22,8 @@ const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const TeamsPage = lazy(() => import('./pages/TeamsPage'))
 const PricingPage = lazy(() => import('./pages/PricingPage'))
 const PublicSharePage = lazy(() => import('./pages/PublicSharePage'))
+const AdminLoginPage = lazy(() => import('./admin/pages/AdminLoginPage'))
+const AdminDashboardPage = lazy(() => import('./admin/pages/AdminDashboardPage'))
 
 function RouteMeta() {
   const { pathname } = useLocation()
@@ -34,6 +39,8 @@ function RouteMeta() {
     if (pathname.startsWith('/settings')) return 'Settings | Vault'
     if (pathname.startsWith('/teams')) return 'Teams | Vault'
     if (pathname.startsWith('/pricing')) return 'Pricing | Vault'
+    if (pathname === '/admin/login') return 'Admin Sign In | Vault'
+    if (pathname.startsWith('/admin')) return 'Admin | Vault'
     return 'Vault'
   }, [pathname])
 
@@ -73,8 +80,9 @@ export default function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <RouteMeta />
+        <AdminAuthProvider>
+          <BrowserRouter>
+            <RouteMeta />
 
           {backendOffline && (
             <div style={{ margin: 12, padding: 12, borderRadius: 10, background: 'color-mix(in oklab, var(--warn) 14%, var(--surface))', color: 'var(--warn)', fontSize: 13 }}>
@@ -85,35 +93,50 @@ export default function App() {
             </div>
           )}
 
-          <Suspense fallback={<RouteFallback />}>
-            <Routes>
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/register" element={<RegisterPage />} />
-              <Route path="/public/:token" element={<PublicSharePage />} />
-              {/* Dashboard is public — guests can browse, actions require login */}
-              <Route element={<AppShell />}>
-                <Route path="/" element={<DashboardPage />} />
-              </Route>
-              <Route
-                element={
-                  <PrivateRoute>
-                    <AppShell />
-                  </PrivateRoute>
-                }
-              >
-                <Route path="/files" element={<FilesPage />} />
-                <Route path="/shared" element={<SharedPage />} />
-                <Route path="/starred" element={<StarredPage />} />
-                <Route path="/trash" element={<TrashPage />} />
-                <Route path="/analytics" element={<AnalyticsPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/teams" element={<TeamsPage />} />
-                <Route path="/pricing" element={<PricingPage />} />
-              </Route>
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Routes>
-          </Suspense>
-        </BrowserRouter>
+            <Suspense fallback={<RouteFallback />}>
+              <Routes>
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/register" element={<RegisterPage />} />
+                <Route path="/public/:token" element={<PublicSharePage />} />
+                <Route path="/admin/login" element={<AdminLoginPage />} />
+                {/* Dashboard is public — guests can browse, actions require login */}
+                <Route element={<AppShell />}>
+                  <Route path="/" element={<DashboardPage />} />
+                </Route>
+                <Route
+                  element={
+                    <PrivateRoute>
+                      <AppShell />
+                    </PrivateRoute>
+                  }
+                >
+                  <Route path="/files" element={<FilesPage />} />
+                  <Route path="/shared" element={<SharedPage />} />
+                  <Route path="/starred" element={<StarredPage />} />
+                  <Route path="/trash" element={<TrashPage />} />
+                  <Route path="/analytics" element={<AnalyticsPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/teams" element={<TeamsPage />} />
+                  <Route path="/pricing" element={<PricingPage />} />
+                </Route>
+                <Route
+                  element={
+                    <AdminRoute>
+                      <AdminShell />
+                    </AdminRoute>
+                  }
+                >
+                  <Route path="/admin" element={<AdminDashboardPage />} />
+                  <Route path="/admin/users" element={<AdminDashboardPage />} />
+                  <Route path="/admin/files" element={<AdminDashboardPage />} />
+                  <Route path="/admin/settings" element={<AdminDashboardPage />} />
+                  <Route path="/admin/*" element={<AdminDashboardPage />} />
+                </Route>
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </Suspense>
+          </BrowserRouter>
+        </AdminAuthProvider>
       </AuthProvider>
     </ThemeProvider>
   )
