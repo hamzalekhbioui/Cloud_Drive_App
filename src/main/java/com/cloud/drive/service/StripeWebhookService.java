@@ -53,6 +53,7 @@ public class StripeWebhookService {
         if (properties.getWebhookSecret() == null || properties.getWebhookSecret().isBlank()) {
             throw new ApiException("Stripe webhook is not configured", HttpStatus.SERVICE_UNAVAILABLE);
         }
+
         if (signature == null || signature.isBlank()) {
             log.warn("stripe_webhook_signature_rejected reason=missing_signature");
             throw new ApiException("Missing Stripe webhook signature", HttpStatus.BAD_REQUEST);
@@ -74,6 +75,22 @@ public class StripeWebhookService {
             log.error("stripe_webhook_processing_failed eventId={} eventType={} errorType={} message={}",
                     event.getId(), event.getType(), e.getClass().getSimpleName(), e.getMessage(), e);
             throw new ApiException("Webhook processing failed", HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
+
+    /**
+     * Reprocesses a stored webhook payload through the same idempotent handler
+     * used by Stripe delivery. Processed events are deliberate no-ops.
+     */
+    public void replayWebhook(Long eventId) {
+        WebhookEvent stored = eventRepository.findById(eventId)
+                .orElseThrow(() -> new ApiException("Webhook event not found", HttpStatus.NOT_FOUND));
+        try {
+            transactionTemplate.executeWithoutResult(status ->
+                    processInternal(stored.getStripeEventId(), stored.getEventType(), stored.getPayload()));
+        } catch (Exception e) {
+            recordFailure(stored.getStripeEventId(), stored.getEventType(), stored.getPayload(), e);
+            throw new ApiException("Webhook replay failed", HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
