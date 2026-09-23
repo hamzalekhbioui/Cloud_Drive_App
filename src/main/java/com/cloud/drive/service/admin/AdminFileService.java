@@ -70,9 +70,7 @@ public class AdminFileService {
         if (file.getBlobFileName() != null && !file.getBlobFileName().isBlank()) {
             blobStorageService.deleteFile(file.getBlobFileName());
         }
-        if (aiRepository.existsById(file.getId())) {
-            aiRepository.deleteById(file.getId());
-        }
+        aiRepository.deleteById(file.getId());
         shareRepository.deleteByFileId(file.getId());
         fileRepository.delete(file);
     }
