@@ -9,6 +9,8 @@ const NAV = [
   { to: '/admin/files', label: 'Files', icon: 'folder' as const },
   { to: '/admin/shares', label: 'Share links', icon: 'share' as const },
   { to: '/admin/teams', label: 'Teams', icon: 'users' as const },
+  { to: '/admin/billing', label: 'Billing', icon: 'tag' as const },
+  { to: '/admin/webhooks', label: 'Webhooks', icon: 'shield' as const },
   { to: '/admin/settings', label: 'Settings', icon: 'settings' as const },
 ]
 

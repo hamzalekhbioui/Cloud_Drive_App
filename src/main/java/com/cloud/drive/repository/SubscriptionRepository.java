@@ -9,8 +9,22 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
 import java.util.List;
-
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
+
+    @Query("""
+            select s from Subscription s
+            where (:status is null or s.status = :status)
+              and (:plan is null or upper(s.plan) = upper(:plan))
+              and (:fromDate is null or s.startDate >= :fromDate)
+              and (:toDate is null or s.startDate <= :toDate)
+            """)
+    Page<Subscription> findAllForAdmin(@Param("status") String status,
+                                       @Param("plan") String plan,
+                                       @Param("fromDate") java.time.LocalDateTime fromDate,
+                                       @Param("toDate") java.time.LocalDateTime toDate,
+                                       Pageable pageable);
 
     /** Normal read — no lock. */
     Optional<Subscription> findByUserEmail(String userEmail);
