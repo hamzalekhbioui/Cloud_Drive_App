@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import com.cloud.drive.security.admin.AdminPrincipal;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/admin/webhooks")
@@ -33,8 +36,9 @@ public class AdminWebhookController {
     }
 
     @PostMapping("/{eventId}/replay")
-    public AdminWebhookEventDto replay(@PathVariable Long eventId) {
-        return billingService.replayWebhook(eventId);
+    public AdminWebhookEventDto replay(@PathVariable Long eventId, @AuthenticationPrincipal AdminPrincipal admin,
+                                       HttpServletRequest request) {
+        return billingService.replayWebhook(eventId, admin, request.getRemoteAddr());
     }
 
     private static LocalDateTime startOf(LocalDate date) {

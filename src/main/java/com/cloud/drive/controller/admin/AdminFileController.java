@@ -9,6 +9,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.cloud.drive.security.admin.AdminPrincipal;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -46,18 +49,21 @@ public class AdminFileController {
     }
 
     @PostMapping("/{fileId}/delete")
-    public AdminFileDto softDelete(@PathVariable Long fileId) {
-        return fileService.softDelete(fileId);
+    public AdminFileDto softDelete(@PathVariable Long fileId, @AuthenticationPrincipal AdminPrincipal admin,
+                                   HttpServletRequest request) {
+        return fileService.softDelete(fileId, admin, request.getRemoteAddr());
     }
 
     @PostMapping("/{fileId}/restore")
-    public AdminFileDto restore(@PathVariable Long fileId) {
-        return fileService.restore(fileId);
+    public AdminFileDto restore(@PathVariable Long fileId, @AuthenticationPrincipal AdminPrincipal admin,
+                                HttpServletRequest request) {
+        return fileService.restore(fileId, admin, request.getRemoteAddr());
     }
 
     @DeleteMapping("/{fileId}")
-    public ResponseEntity<Void> purge(@PathVariable Long fileId) {
-        fileService.purge(fileId);
+    public ResponseEntity<Void> purge(@PathVariable Long fileId, @AuthenticationPrincipal AdminPrincipal admin,
+                                      HttpServletRequest request) {
+        fileService.purge(fileId, admin, request.getRemoteAddr());
         return ResponseEntity.noContent().build();
     }
 }

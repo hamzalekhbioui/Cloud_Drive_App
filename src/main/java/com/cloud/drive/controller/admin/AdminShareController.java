@@ -4,6 +4,9 @@ import com.cloud.drive.dto.admin.file.AdminShareDto;
 import com.cloud.drive.service.admin.AdminFileService;
 import org.springframework.data.domain.*;
 import org.springframework.web.bind.annotation.*;
+import com.cloud.drive.security.admin.AdminPrincipal;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/admin/shares")
@@ -23,7 +26,8 @@ public class AdminShareController {
     }
 
     @PostMapping("/{shareId}/revoke")
-    public AdminShareDto revoke(@PathVariable Long shareId) {
-        return fileService.revokeShare(shareId);
+    public AdminShareDto revoke(@PathVariable Long shareId, @AuthenticationPrincipal AdminPrincipal admin,
+                                HttpServletRequest request) {
+        return fileService.revokeShare(shareId, admin, request.getRemoteAddr());
     }
 }
