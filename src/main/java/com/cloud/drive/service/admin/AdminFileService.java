@@ -6,6 +6,7 @@ import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.model.FileShare;
 import com.cloud.drive.repository.*;
 import com.cloud.drive.service.BlobStorageService;
+import com.cloud.drive.security.admin.AdminPrincipal;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -22,17 +23,20 @@ public class AdminFileService {
     private final FileAiProcessingRepository aiRepository;
     private final TeamRepository teamRepository;
     private final BlobStorageService blobStorageService;
+    private final AdminAuditService auditService;
 
     public AdminFileService(FileRepository fileRepository,
                             FileShareRepository shareRepository,
                             FileAiProcessingRepository aiRepository,
                             TeamRepository teamRepository,
-                            BlobStorageService blobStorageService) {
+                            BlobStorageService blobStorageService,
+                            AdminAuditService auditService) {
         this.fileRepository = fileRepository;
         this.shareRepository = shareRepository;
         this.aiRepository = aiRepository;
         this.teamRepository = teamRepository;
         this.blobStorageService = blobStorageService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -52,21 +56,39 @@ public class AdminFileService {
 
     @Transactional
     public AdminFileDto softDelete(Long fileId) {
+        return softDelete(fileId, null, null);
+    }
+
+    @Transactional
+    public AdminFileDto softDelete(Long fileId, AdminPrincipal admin, String ip) {
         FileEntity file = findFile(fileId);
+        record(admin, AdminAuditActions.FILE_DELETE, "FILE", fileId, "{\"fileId\":" + fileId + "}", ip);
         file.setDeletedAt(file.getDeletedAt() == null ? LocalDateTime.now() : file.getDeletedAt());
         return toFileDto(fileRepository.save(file));
     }
 
     @Transactional
     public AdminFileDto restore(Long fileId) {
+        return restore(fileId, null, null);
+    }
+
+    @Transactional
+    public AdminFileDto restore(Long fileId, AdminPrincipal admin, String ip) {
         FileEntity file = findFile(fileId);
+        record(admin, AdminAuditActions.FILE_RESTORE, "FILE", fileId, "{\"fileId\":" + fileId + "}", ip);
         file.setDeletedAt(null);
         return toFileDto(fileRepository.save(file));
     }
 
     @Transactional
     public void purge(Long fileId) {
+        purge(fileId, null, null);
+    }
+
+    @Transactional
+    public void purge(Long fileId, AdminPrincipal admin, String ip) {
         FileEntity file = findFile(fileId);
+        record(admin, AdminAuditActions.FILE_PURGE, "FILE", fileId, "{\"fileId\":" + fileId + "}", ip);
         if (file.getBlobFileName() != null && !file.getBlobFileName().isBlank()) {
             blobStorageService.deleteFile(file.getBlobFileName());
         }
@@ -83,9 +105,18 @@ public class AdminFileService {
 
     @Transactional
     public AdminShareDto revokeShare(Long shareId) {
+        return revokeShare(shareId, null, null);
+    }
+
+    @Transactional
+    public AdminShareDto revokeShare(Long shareId, AdminPrincipal admin, String ip) {
         FileShare share = shareRepository.findById(shareId)
                 .orElseThrow(() -> new ApiException("Share not found", HttpStatus.NOT_FOUND));
-        if (share.getRevokedAt() == null) share.setRevokedAt(LocalDateTime.now());
+        if (share.getRevokedAt() == null) {
+            record(admin, AdminAuditActions.SHARE_REVOKE, "SHARE", shareId,
+                    "{\"shareId\":" + shareId + ",\"fileId\":" + share.getFileId() + "}", ip);
+            share.setRevokedAt(LocalDateTime.now());
+        }
         return toShareDto(shareRepository.save(share));
     }
 
@@ -131,5 +162,12 @@ public class AdminFileService {
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    private void record(AdminPrincipal admin, String action, String targetType, Long targetId,
+                        String detail, String ip) {
+        if (auditService != null && admin != null) {
+            auditService.record(admin, action, targetType, String.valueOf(targetId), detail, ip);
+        }
     }
 }

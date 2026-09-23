@@ -4,6 +4,7 @@ import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.repository.*;
 import com.cloud.drive.service.BlobStorageService;
+import com.cloud.drive.security.admin.AdminPrincipal;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -24,6 +25,7 @@ class AdminFileServiceTest {
     @Mock private FileAiProcessingRepository aiRepository;
     @Mock private TeamRepository teamRepository;
     @Mock private BlobStorageService blobStorageService;
+    @Mock private AdminAuditService auditService;
 
     @InjectMocks private AdminFileService service;
 
@@ -50,6 +52,19 @@ class AdminFileServiceTest {
         verify(aiRepository).deleteById(7L);
         verify(shareRepository).deleteByFileId(7L);
         verify(fileRepository).delete(file);
+    }
+
+    @Test
+    void purge_recordsExactlyOneAuditRowBeforeMutation() {
+        FileEntity file = file();
+        AdminPrincipal admin = new AdminPrincipal(1L, "admin@example.com", "Admin");
+        when(fileRepository.findById(7L)).thenReturn(Optional.of(file));
+
+        service.purge(7L, admin, "10.0.0.1");
+
+        verify(auditService).record(admin, AdminAuditActions.FILE_PURGE, "FILE", "7",
+                "{\"fileId\":7}", "10.0.0.1");
+        verify(auditService, times(1)).record(any(), any(), any(), any(), any(), any());
     }
 
     @Test

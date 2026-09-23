@@ -46,7 +46,7 @@ public class AdminAuthService {
         AdminAuditLog audit = new AdminAuditLog();
         audit.setAdminId(admin.getId());
         audit.setAdminEmail(admin.getEmail());
-        audit.setAction("ADMIN_LOGIN");
+        audit.setAction(AdminAuditActions.ADMIN_LOGIN);
         audit.setIpAddress(ipAddress);
         audit.setCreatedAt(LocalDateTime.now());
         auditLogRepository.save(audit);

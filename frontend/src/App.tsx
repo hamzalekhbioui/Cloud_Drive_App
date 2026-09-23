@@ -29,6 +29,7 @@ const AdminSharesPage = lazy(() => import('./admin/pages/AdminSharesPage'))
 const AdminTeamsPage = lazy(() => import('./admin/pages/AdminTeamsPage'))
 const AdminBillingPage = lazy(() => import('./admin/pages/AdminBillingPage'))
 const AdminWebhooksPage = lazy(() => import('./admin/pages/AdminWebhooksPage'))
+const AdminAuditPage = lazy(() => import('./admin/pages/AdminAuditPage'))
 
 function RouteMeta() {
   const { pathname } = useLocation()
@@ -138,6 +139,7 @@ export default function App() {
                   <Route path="/admin/teams" element={<AdminTeamsPage />} />
                   <Route path="/admin/billing" element={<AdminBillingPage />} />
                   <Route path="/admin/webhooks" element={<AdminWebhooksPage />} />
+                  <Route path="/admin/audit" element={<AdminAuditPage />} />
                   <Route path="/admin/settings" element={<AdminOverviewPage />} />
                   <Route path="/admin/*" element={<AdminOverviewPage />} />
                 </Route>

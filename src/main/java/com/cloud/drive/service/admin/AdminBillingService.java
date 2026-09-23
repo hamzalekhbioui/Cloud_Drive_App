@@ -5,6 +5,7 @@ import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.*;
 import com.cloud.drive.repository.*;
 import com.cloud.drive.service.StripeWebhookService;
+import com.cloud.drive.security.admin.AdminPrincipal;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
@@ -22,19 +23,22 @@ public class AdminBillingService {
     private final WebhookEventRepository webhookRepository;
     private final PlanRepository planRepository;
     private final StripeWebhookService stripeWebhookService;
+    private final AdminAuditService auditService;
 
     public AdminBillingService(SubscriptionRepository subscriptionRepository,
                                PaymentRepository paymentRepository,
                                UsageTrackingRepository usageRepository,
                                WebhookEventRepository webhookRepository,
                                PlanRepository planRepository,
-                               StripeWebhookService stripeWebhookService) {
+                               StripeWebhookService stripeWebhookService,
+                               AdminAuditService auditService) {
         this.subscriptionRepository = subscriptionRepository;
         this.paymentRepository = paymentRepository;
         this.usageRepository = usageRepository;
         this.webhookRepository = webhookRepository;
         this.planRepository = planRepository;
         this.stripeWebhookService = stripeWebhookService;
+        this.auditService = auditService;
     }
 
     @Transactional(readOnly = true)
@@ -61,9 +65,16 @@ public class AdminBillingService {
 
     @Transactional
     public AdminSubscriptionDto overridePlan(String userId, Long planId) {
+        return overridePlan(userId, planId, null, null);
+    }
+
+    @Transactional
+    public AdminSubscriptionDto overridePlan(String userId, Long planId, AdminPrincipal admin, String ip) {
         Subscription subscription = findSubscriptionForUpdate(userId);
         Plan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new ApiException("Plan not found", HttpStatus.NOT_FOUND));
+        record(admin, AdminAuditActions.PLAN_OVERRIDE, "USER", userId,
+                "{\"userId\":\"" + userId + "\",\"planId\":" + planId + "}", ip);
         subscription.setPlanRecord(plan);
         subscription.setStatus(SubscriptionStatus.ACTIVE);
         subscription.setCancelAtPeriodEnd(false);
@@ -72,10 +83,17 @@ public class AdminBillingService {
 
     @Transactional
     public AdminSubscriptionDto extendSubscription(String userId, int days) {
+        return extendSubscription(userId, days, null, null);
+    }
+
+    @Transactional
+    public AdminSubscriptionDto extendSubscription(String userId, int days, AdminPrincipal admin, String ip) {
         if (days < 1) {
             throw new ApiException("Extension must be at least one day", HttpStatus.BAD_REQUEST);
         }
         Subscription subscription = findSubscriptionForUpdate(userId);
+        record(admin, AdminAuditActions.SUBSCRIPTION_EXTEND, "USER", userId,
+                "{\"userId\":\"" + userId + "\",\"days\":" + days + "}", ip);
         LocalDateTime base = subscription.getCurrentPeriodEnd() != null
                 ? subscription.getCurrentPeriodEnd() : LocalDateTime.now();
         LocalDateTime extended = base.plusDays(days);
@@ -90,13 +108,27 @@ public class AdminBillingService {
 
     @Transactional
     public AdminSubscriptionDto cancelSubscription(String userId) {
+        return cancelSubscription(userId, null, null);
+    }
+
+    @Transactional
+    public AdminSubscriptionDto cancelSubscription(String userId, AdminPrincipal admin, String ip) {
         Subscription subscription = findSubscriptionForUpdate(userId);
+        record(admin, AdminAuditActions.SUBSCRIPTION_CANCEL, "USER", userId,
+                "{\"userId\":\"" + userId + "\"}", ip);
         subscription.cancelNow(LocalDateTime.now());
         return toSubscriptionDto(subscriptionRepository.save(subscription));
     }
 
     @Transactional
     public void resetUsage(String userEmail) {
+        resetUsage(userEmail, null, null);
+    }
+
+    @Transactional
+    public void resetUsage(String userEmail, AdminPrincipal admin, String ip) {
+        record(admin, AdminAuditActions.USAGE_RESET, "USER", userEmail,
+                "{\"userEmail\":\"" + userEmail + "\"}", ip);
         usageRepository.deleteByUserEmail(userEmail);
     }
 
@@ -116,6 +148,13 @@ public class AdminBillingService {
 
     @Transactional
     public AdminWebhookEventDto replayWebhook(Long eventId) {
+        return replayWebhook(eventId, null, null);
+    }
+
+    @Transactional
+    public AdminWebhookEventDto replayWebhook(Long eventId, AdminPrincipal admin, String ip) {
+        record(admin, AdminAuditActions.WEBHOOK_REPLAY, "WEBHOOK_EVENT", String.valueOf(eventId),
+                "{\"eventId\":" + eventId + "}", ip);
         stripeWebhookService.replayWebhook(eventId);
         return getWebhookEvent(eventId);
     }
@@ -181,5 +220,12 @@ public class AdminBillingService {
 
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value;
+    }
+
+    private void record(AdminPrincipal admin, String action, String targetType, String targetId,
+                        String detail, String ip) {
+        if (auditService != null && admin != null) {
+            auditService.record(admin, action, targetType, targetId, detail, ip);
+        }
     }
 }

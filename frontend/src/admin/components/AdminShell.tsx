@@ -11,6 +11,7 @@ const NAV = [
   { to: '/admin/teams', label: 'Teams', icon: 'users' as const },
   { to: '/admin/billing', label: 'Billing', icon: 'tag' as const },
   { to: '/admin/webhooks', label: 'Webhooks', icon: 'shield' as const },
+  { to: '/admin/audit', label: 'Audit log', icon: 'clock' as const },
   { to: '/admin/settings', label: 'Settings', icon: 'settings' as const },
 ]
 

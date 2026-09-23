@@ -9,6 +9,9 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import com.cloud.drive.security.admin.AdminPrincipal;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
 @RequestMapping("/api/admin/billing")
@@ -51,24 +54,30 @@ public class AdminBillingController {
 
     @PostMapping("/subscriptions/{userId}/plan")
     public AdminSubscriptionDto overridePlan(@PathVariable String userId,
-                                             @Valid @RequestBody AdminPlanOverrideRequest request) {
-        return billingService.overridePlan(userId, request.getPlanId());
+                                             @Valid @RequestBody AdminPlanOverrideRequest request,
+                                             @AuthenticationPrincipal AdminPrincipal admin,
+                                             HttpServletRequest httpRequest) {
+        return billingService.overridePlan(userId, request.getPlanId(), admin, httpRequest.getRemoteAddr());
     }
 
     @PostMapping("/subscriptions/{userId}/extend")
     public AdminSubscriptionDto extend(@PathVariable String userId,
-                                       @Valid @RequestBody AdminExtendSubscriptionRequest request) {
-        return billingService.extendSubscription(userId, request.getDays());
+                                       @Valid @RequestBody AdminExtendSubscriptionRequest request,
+                                       @AuthenticationPrincipal AdminPrincipal admin,
+                                       HttpServletRequest httpRequest) {
+        return billingService.extendSubscription(userId, request.getDays(), admin, httpRequest.getRemoteAddr());
     }
 
     @PostMapping("/subscriptions/{userId}/cancel")
-    public AdminSubscriptionDto cancel(@PathVariable String userId) {
-        return billingService.cancelSubscription(userId);
+    public AdminSubscriptionDto cancel(@PathVariable String userId, @AuthenticationPrincipal AdminPrincipal admin,
+                                       HttpServletRequest httpRequest) {
+        return billingService.cancelSubscription(userId, admin, httpRequest.getRemoteAddr());
     }
 
     @PostMapping("/usage/{userEmail}/reset")
-    public void resetUsage(@PathVariable String userEmail) {
-        billingService.resetUsage(userEmail);
+    public void resetUsage(@PathVariable String userEmail, @AuthenticationPrincipal AdminPrincipal admin,
+                           HttpServletRequest httpRequest) {
+        billingService.resetUsage(userEmail, admin, httpRequest.getRemoteAddr());
     }
 
     private static LocalDateTime startOf(LocalDate date) {
