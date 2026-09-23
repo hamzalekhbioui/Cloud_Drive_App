@@ -97,6 +97,7 @@ public class ShareService {
 
     public List<SharedFileResponse> getFilesSharedWithMe(String userEmail) {
         return shareRepo.findBySharedWithEmail(userEmail).stream()
+                .filter(s -> s.getRevokedAt() == null)
                 .filter(s -> s.getExpiresAt() == null || s.getExpiresAt().isAfter(LocalDateTime.now()))
                 .map(s -> {
                     FileEntity file = fileRepo.findById(s.getFileId()).orElse(null);

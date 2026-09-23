@@ -4,6 +4,7 @@ import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.BlobHttpHeaders;
+import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.sas.BlobSasPermission;
 import com.azure.storage.blob.sas.BlobServiceSasSignatureValues;
 import com.cloud.drive.exception.ApiException;
@@ -79,7 +80,14 @@ public class BlobStorageService {
         requireAzure();
         BlobContainerClient containerClient = blobServiceClient.getBlobContainerClient(containerName);
         BlobClient blobClient = containerClient.getBlobClient(blobFileName);
-        blobClient.deleteIfExists();
+        try {
+            blobClient.deleteIfExists();
+        } catch (BlobStorageException e) {
+            // Purging metadata must remain safe when storage has already removed the blob.
+            if (e.getStatusCode() != 404) {
+                throw e;
+            }
+        }
     }
 
     public String generateSasUrlForBlob(String blobFileName) {

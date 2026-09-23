@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -128,6 +129,19 @@ class ShareServiceTest {
         assertThat(results).hasSize(1);
         assertThat(results.get(0).getFileName()).isEqualTo("report.pdf");
         assertThat(results.get(0).getOwnerEmail()).isEqualTo("alice@example.com");
+    }
+
+    @Test
+    void getFilesSharedWithMe_excludesRevokedShares() {
+        FileShare share = new FileShare();
+        share.setFileId(10L);
+        share.setSharedWithEmail("bob@example.com");
+        share.setRevokedAt(LocalDateTime.now());
+
+        when(shareRepo.findBySharedWithEmail("bob@example.com")).thenReturn(List.of(share));
+
+        assertThat(shareService.getFilesSharedWithMe("bob@example.com")).isEmpty();
+        verifyNoInteractions(fileRepo);
     }
 
     @Test
