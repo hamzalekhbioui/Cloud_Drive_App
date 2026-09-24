@@ -3,7 +3,9 @@ package com.cloud.drive.service;
 import com.cloud.drive.dto.FileResponseDto;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
+import com.cloud.drive.model.TeamMember;
 import com.cloud.drive.repository.FileRepository;
+import com.cloud.drive.repository.TeamMemberRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +32,7 @@ class FileServiceTest {
     @Mock private BlobStorageService blobStorageService;
     @Mock private FileRepository fileRepository;
     @Mock private SubscriptionService subscriptionService;
+    @Mock private TeamMemberRepository teamMemberRepository;
 
     @InjectMocks private FileService fileService;
 
@@ -148,5 +151,59 @@ class FileServiceTest {
 
         FileResponseDto second = fileService.toggleStar(42L, OWNER);
         assertThat(second.isStarred()).isFalse();
+    }
+
+    @Test
+    void teamMember_canReadAnotherMembersFile_butCannotDeleteIt() throws IOException {
+        FileEntity file = ownedFile();
+        file.setTeamId(8L);
+        when(fileRepository.findById(42L)).thenReturn(Optional.of(file));
+        TeamMember member = new TeamMember();
+        member.setTeamId(8L);
+        member.setUserEmail(OTHER_USER);
+        member.setRole("MEMBER");
+        member.setStatus("ACTIVE");
+        when(teamMemberRepository.findByTeamIdAndUserEmail(8L, OTHER_USER)).thenReturn(Optional.of(member));
+
+        assertThat(fileService.findOwnedForStream(42L, OTHER_USER)).isSameAs(file);
+        assertThatThrownBy(() -> fileService.deleteFile(42L, OTHER_USER))
+                .isInstanceOf(ApiException.class)
+                .hasFieldOrPropertyWithValue("status", HttpStatus.FORBIDDEN);
+        verify(fileRepository, never()).save(file);
+    }
+
+    @Test
+    void teamAdmin_canDeleteAnotherMembersFile() {
+        FileEntity file = ownedFile();
+        file.setTeamId(8L);
+        when(fileRepository.findById(42L)).thenReturn(Optional.of(file));
+        TeamMember admin = new TeamMember();
+        admin.setTeamId(8L);
+        admin.setUserEmail(OTHER_USER);
+        admin.setRole("ADMIN");
+        admin.setStatus("ACTIVE");
+        when(teamMemberRepository.findByTeamIdAndUserEmail(8L, OTHER_USER)).thenReturn(Optional.of(admin));
+
+        fileService.deleteFile(42L, OTHER_USER);
+
+        assertThat(file.getDeletedAt()).isNotNull();
+        verify(fileRepository).save(file);
+    }
+
+    @Test
+    void inactiveTeamMember_cannotReadTeamFile() {
+        FileEntity file = ownedFile();
+        file.setTeamId(8L);
+        when(fileRepository.findById(42L)).thenReturn(Optional.of(file));
+        TeamMember member = new TeamMember();
+        member.setTeamId(8L);
+        member.setUserEmail(OTHER_USER);
+        member.setRole("MEMBER");
+        member.setStatus("PENDING");
+        when(teamMemberRepository.findByTeamIdAndUserEmail(8L, OTHER_USER)).thenReturn(Optional.of(member));
+
+        assertThatThrownBy(() -> fileService.findOwnedForStream(42L, OTHER_USER))
+                .isInstanceOf(ApiException.class)
+                .hasFieldOrPropertyWithValue("status", HttpStatus.FORBIDDEN);
     }
 }

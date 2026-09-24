@@ -4,6 +4,7 @@ import com.cloud.drive.dto.FileResponseDto;
 import com.cloud.drive.dto.UploadTargetDto;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
+import com.cloud.drive.model.TeamMember;
 import com.cloud.drive.repository.FileRepository;
 import com.cloud.drive.repository.FileAiProcessingRepository;
 import com.cloud.drive.model.FileAiProcessing;
@@ -37,6 +38,7 @@ public class FileService {
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_PENDING = "PENDING";
     private static final long SAS_UPLOAD_TTL_SECONDS = 600;
+    private enum FileAction { READ, COMMIT, DELETE, RESTORE, PURGE, STAR, AI }
 
     private final BlobStorageService blobStorageService;
     private final StorageService storageService;
@@ -193,7 +195,7 @@ public class FileService {
      */
     @Transactional
     public FileResponseDto commitUpload(Long fileId, String userId) {
-        FileEntity f = findOwned(fileId, userId);
+        FileEntity f = authorize(fileId, userId, FileAction.COMMIT);
         if (!STATUS_PENDING.equals(f.getStatus())) {
             throw new ApiException("Invalid commit — file is not in PENDING status", HttpStatus.CONFLICT);
         }
@@ -225,7 +227,7 @@ public class FileService {
     }
 
     public void streamFile(Long fileId, String userId, HttpServletResponse response) throws IOException {
-        FileEntity file = findOwned(fileId, userId);
+        FileEntity file = authorize(fileId, userId, FileAction.READ);
         String contentType = (file.getType() != null) ? file.getType() : "application/octet-stream";
         response.setContentType(contentType);
         response.setHeader("Content-Disposition", "inline; filename=\"" + file.getOriginalFileName() + "\"");
@@ -236,11 +238,11 @@ public class FileService {
      * Returns the file entity owned by the given user, for range-aware streaming.
      */
     public FileEntity findOwnedForStream(Long fileId, String userId) {
-        return findOwned(fileId, userId);
+        return authorize(fileId, userId, FileAction.READ);
     }
 
     public FileEntity findOwnedForAi(Long fileId, String userId) {
-        FileEntity file = findOwned(fileId, userId);
+        FileEntity file = authorize(fileId, userId, FileAction.AI);
         if (file.getDeletedAt() != null || !STATUS_ACTIVE.equals(file.getStatus())) {
             throw new ApiException("File is not available for AI chat", HttpStatus.CONFLICT);
         }
@@ -262,21 +264,21 @@ public class FileService {
 
     @Transactional
     public void deleteFile(Long fileId, String userId) {
-        FileEntity file = findOwned(fileId, userId);
+        FileEntity file = authorize(fileId, userId, FileAction.DELETE);
         file.setDeletedAt(LocalDateTime.now());
         fileRepository.save(file);
     }
 
     @Transactional
     public void restoreFile(Long fileId, String userId) {
-        FileEntity file = findOwned(fileId, userId);
+        FileEntity file = authorize(fileId, userId, FileAction.RESTORE);
         file.setDeletedAt(null);
         fileRepository.save(file);
     }
 
     @Transactional
     public void permanentlyDeleteFile(Long fileId, String userId) {
-        FileEntity file = findOwned(fileId, userId);
+        FileEntity file = authorize(fileId, userId, FileAction.PURGE);
         blobStorageService.deleteFile(file.getBlobFileName());
         if (aiProcessingService != null) aiProcessingService.deleteForFile(file.getId());
         fileRepository.delete(file);
@@ -288,44 +290,51 @@ public class FileService {
 
     @Transactional
     public FileResponseDto toggleStar(Long fileId, String userId) {
-        FileEntity file = findOwned(fileId, userId);
+        FileEntity file = authorize(fileId, userId, FileAction.STAR);
         file.setStarred(!file.isStarred());
         return mapToDto(fileRepository.save(file));
     }
 
     // ── private helpers ────────────────────────────────────────────────────
 
-    private FileEntity findOwned(Long fileId, String userId) {
+    private FileEntity authorize(Long fileId, String userId, FileAction action) {
         FileEntity file = fileRepository.findById(fileId)
                 .orElseThrow(() -> new ApiException("File not found", HttpStatus.NOT_FOUND));
-        
-        boolean isOwner = file.getUserId().equals(userId);
-        boolean isTeamMember = false;
-        if (file.getTeamId() != null) {
-            isTeamMember = teamMemberRepository.findByTeamIdAndUserEmail(file.getTeamId(), userId)
-                    .map(m -> "ACTIVE".equals(m.getStatus()))
-                    .orElse(false);
-        }
+        boolean isOwner = userId.equals(file.getUserId());
+        TeamMember member = activeTeamMember(file, userId);
+        boolean isTeamAdmin = member != null && ("OWNER".equals(member.getRole()) || "ADMIN".equals(member.getRole()));
 
-        if (!isOwner && !isTeamMember) {
-            throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
-        }
-        
-        // PENDING files should only be visible/committable by the owner or team admins
-        if (STATUS_PENDING.equals(file.getStatus()) && !isOwner) {
-            // Check if user is a team admin if it's a team file
-            boolean isTeamAdmin = false;
-            if (file.getTeamId() != null) {
-                isTeamAdmin = teamMemberRepository.findByTeamIdAndUserEmail(file.getTeamId(), userId)
-                        .map(m -> "ACTIVE".equals(m.getStatus()) && "ADMIN".equals(m.getRole()))
-                        .orElse(false);
+        if (action == FileAction.READ) {
+            if (!isOwner && member == null) {
+                throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
             }
-            if (!isTeamAdmin) {
-                throw new ApiException("File upload is still in progress", HttpStatus.FORBIDDEN);
+        } else if (action == FileAction.COMMIT) {
+            if (!isOwner && !isTeamAdmin) {
+                throw new ApiException("Only the file owner or a team administrator can commit this upload",
+                        HttpStatus.FORBIDDEN);
+            }
+        } else if (action == FileAction.DELETE || action == FileAction.RESTORE || action == FileAction.PURGE) {
+            if (!isOwner && !isTeamAdmin) {
+                throw new ApiException("Only the file owner or a team administrator can modify this file",
+                        HttpStatus.FORBIDDEN);
+            }
+        } else if (action == FileAction.STAR || action == FileAction.AI) {
+            if (!isOwner) {
+                throw new ApiException("Only the file owner can perform this action", HttpStatus.FORBIDDEN);
             }
         }
 
+        if (STATUS_PENDING.equals(file.getStatus()) && !isOwner && !isTeamAdmin) {
+            throw new ApiException("File upload is still in progress", HttpStatus.FORBIDDEN);
+        }
         return file;
+    }
+
+    private TeamMember activeTeamMember(FileEntity file, String userId) {
+        if (file.getTeamId() == null) return null;
+        return teamMemberRepository.findByTeamIdAndUserEmail(file.getTeamId(), userId)
+                .filter(m -> "ACTIVE".equals(m.getStatus()))
+                .orElse(null);
     }
 
     private void requireTeamMembership(Long teamId, String userId) {
