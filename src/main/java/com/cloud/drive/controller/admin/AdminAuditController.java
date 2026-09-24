@@ -9,6 +9,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import com.cloud.drive.util.AdminPaging;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/admin/audit")
@@ -26,7 +28,8 @@ public class AdminAuditController {
                                       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
                                       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
                                       Pageable pageable) {
-        return auditService.list(admin, action, targetType, startOf(fromDate), endOf(toDate), pageable);
+        return auditService.list(admin, action, targetType, startOf(fromDate), endOf(toDate),
+                AdminPaging.bounded(pageable, Set.of("createdAt", "action", "adminEmail", "targetType"), "createdAt"));
     }
 
     private static LocalDateTime startOf(LocalDate value) {

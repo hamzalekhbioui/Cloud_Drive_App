@@ -11,6 +11,8 @@ import java.time.LocalDateTime;
 import com.cloud.drive.security.admin.AdminPrincipal;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
+import com.cloud.drive.util.AdminPaging;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/admin/webhooks")
@@ -27,7 +29,8 @@ public class AdminWebhookController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             Pageable pageable) {
-        return billingService.listWebhookEvents(processed, startOf(fromDate), endOf(toDate), pageable);
+        return billingService.listWebhookEvents(processed, startOf(fromDate), endOf(toDate),
+                AdminPaging.bounded(pageable, Set.of("createdAt", "processedAt", "eventType"), "createdAt"));
     }
 
     @GetMapping("/{eventId}")

@@ -6,6 +6,7 @@ import org.springframework.data.domain.*;
 import org.springframework.web.bind.annotation.*;
 import com.cloud.drive.security.admin.AdminPrincipal;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import com.cloud.drive.util.AdminPaging;
 import jakarta.servlet.http.HttpServletRequest;
 
 @RestController
@@ -22,7 +23,8 @@ public class AdminShareController {
                                     @RequestParam(required = false) Boolean revoked,
                                     @RequestParam(defaultValue = "0") int page,
                                     @RequestParam(defaultValue = "20") int size) {
-        return fileService.listShares(owner, revoked, PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
+        return fileService.listShares(owner, revoked,
+                AdminPaging.bounded(page, size, Sort.by(Sort.Direction.DESC, "createdAt")));
     }
 
     @PostMapping("/{shareId}/revoke")

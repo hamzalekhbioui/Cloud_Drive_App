@@ -10,6 +10,7 @@ import org.springframework.data.domain.*;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import com.cloud.drive.util.AdminPaging;
 
 @RestController
 @RequestMapping("/api/admin/teams")
@@ -25,7 +26,8 @@ public class AdminTeamController {
     @GetMapping
     public Page<AdminTeamDto> list(@RequestParam(defaultValue = "0") int page,
                                    @RequestParam(defaultValue = "20") int size) {
-        return teamRepository.findAll(PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt")))
+        return teamRepository.findAll(AdminPaging.bounded(page, size,
+                        Sort.by(Sort.Direction.DESC, "createdAt")))
                 .map(this::toDto);
     }
 

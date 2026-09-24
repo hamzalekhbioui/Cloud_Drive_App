@@ -15,6 +15,7 @@ import jakarta.servlet.http.HttpServletRequest;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import com.cloud.drive.util.AdminPaging;
 
 @RestController
 @RequestMapping("/api/admin/files")
@@ -37,7 +38,11 @@ public class AdminFileController {
                                    @RequestParam(defaultValue = "20") int size,
                                    @RequestParam(defaultValue = "createdAt") String sort,
                                    @RequestParam(defaultValue = "DESC") Sort.Direction direction) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(direction, sort));
+        String safeSort = switch (sort) {
+            case "createdAt", "size", "originalFileName", "type", "status" -> sort;
+            default -> "createdAt";
+        };
+        Pageable pageable = AdminPaging.bounded(page, size, Sort.by(direction, safeSort));
         return fileService.listFiles(owner, status, type, minSize, maxSize,
                 fromDate == null ? null : fromDate.atStartOfDay(),
                 toDate == null ? null : toDate.plusDays(1).atStartOfDay().minusNanos(1), pageable);

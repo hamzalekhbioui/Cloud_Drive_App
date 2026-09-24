@@ -12,6 +12,8 @@ import java.time.LocalDateTime;
 import com.cloud.drive.security.admin.AdminPrincipal;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import jakarta.servlet.http.HttpServletRequest;
+import com.cloud.drive.util.AdminPaging;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/admin/billing")
@@ -29,7 +31,8 @@ public class AdminBillingController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             Pageable pageable) {
-        return billingService.listSubscriptions(status, plan, startOf(fromDate), endOf(toDate), pageable);
+        return billingService.listSubscriptions(status, plan, startOf(fromDate), endOf(toDate),
+                AdminPaging.bounded(pageable, Set.of("createdAt", "userEmail", "status", "plan"), "createdAt"));
     }
 
     @GetMapping("/payments")
@@ -39,7 +42,8 @@ public class AdminBillingController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             Pageable pageable) {
-        return billingService.listPayments(status, plan, startOf(fromDate), endOf(toDate), pageable);
+        return billingService.listPayments(status, plan, startOf(fromDate), endOf(toDate),
+                AdminPaging.bounded(pageable, Set.of("createdAt", "userEmail", "status", "amount"), "createdAt"));
     }
 
     @GetMapping("/usage")
@@ -49,7 +53,8 @@ public class AdminBillingController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fromDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate toDate,
             Pageable pageable) {
-        return billingService.listUsage(userEmail, plan, fromDate, toDate, pageable);
+        return billingService.listUsage(userEmail, plan, fromDate, toDate,
+                AdminPaging.bounded(pageable, Set.of("periodStart", "periodEnd", "userEmail", "usedBytes"), "periodStart"));
     }
 
     @PostMapping("/subscriptions/{userId}/plan")
