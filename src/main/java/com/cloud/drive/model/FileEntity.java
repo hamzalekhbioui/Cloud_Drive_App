@@ -27,6 +27,7 @@ public class FileEntity {
     @Column(nullable = false, columnDefinition = "varchar(32) not null default 'ACTIVE'")
     private String status = "ACTIVE";
     private LocalDateTime deletedAt;
+    private LocalDateTime uploadExpiresAt;
 
     public FileEntity() {}
 
@@ -65,4 +66,7 @@ public class FileEntity {
 
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }
+
+    public LocalDateTime getUploadExpiresAt() { return uploadExpiresAt; }
+    public void setUploadExpiresAt(LocalDateTime uploadExpiresAt) { this.uploadExpiresAt = uploadExpiresAt; }
 }

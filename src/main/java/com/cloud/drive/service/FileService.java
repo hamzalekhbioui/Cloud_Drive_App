@@ -38,6 +38,7 @@ public class FileService {
     private static final String STATUS_ACTIVE = "ACTIVE";
     private static final String STATUS_PENDING = "PENDING";
     private static final long SAS_UPLOAD_TTL_SECONDS = 600;
+    private static final Duration UPLOAD_RETENTION = Duration.ofSeconds(SAS_UPLOAD_TTL_SECONDS);
     private enum FileAction { READ, COMMIT, DELETE, RESTORE, PURGE, STAR, AI }
 
     private final BlobStorageService blobStorageService;
@@ -172,8 +173,14 @@ public class FileService {
         // P2.1 — also validate against MimePolicy allow-list for defense-in-depth
         MimePolicy.validateType(contentType);
 
-        String writeUrl = storageService.createUploadTarget(blobKey,
-                contentType, declaredSize, Duration.ofSeconds(SAS_UPLOAD_TTL_SECONDS));
+        String writeUrl;
+        try {
+            writeUrl = storageService.createUploadTarget(blobKey,
+                    contentType, declaredSize, Duration.ofSeconds(SAS_UPLOAD_TTL_SECONDS));
+        } catch (RuntimeException ex) {
+            subscriptionService.releaseQuota(userId, declaredSize);
+            throw ex;
+        }
 
         FileEntity pending = new FileEntity();
         pending.setUserId(userId);
@@ -184,6 +191,7 @@ public class FileService {
         pending.setType(contentType);
         pending.setStatus(STATUS_PENDING);
         pending.setCreatedAt(LocalDateTime.now());
+        pending.setUploadExpiresAt(LocalDateTime.now().plus(UPLOAD_RETENTION));
         fileRepository.save(pending);
 
         return new UploadTargetDto(pending.getId(), writeUrl, blobKey, SAS_UPLOAD_TTL_SECONDS);
@@ -199,12 +207,44 @@ public class FileService {
         if (!STATUS_PENDING.equals(f.getStatus())) {
             throw new ApiException("Invalid commit — file is not in PENDING status", HttpStatus.CONFLICT);
         }
-        storageService.assertLength(f.getBlobFileName(), f.getSize());
+        try {
+            storageService.assertLength(f.getBlobFileName(), f.getSize());
+        } catch (RuntimeException ex) {
+            storageService.delete(f.getBlobFileName());
+            fileRepository.delete(f);
+            releaseReservedQuota(f);
+            throw ex;
+        }
         f.setStatus(STATUS_ACTIVE);
         f.setUrl(storageService.createReadUrl(f.getBlobFileName(), false, Duration.ofMinutes(15)));
         FileResponseDto dto = mapToDto(fileRepository.save(f));
         queueAiProcessing(f.getId());
         return dto;
+    }
+
+    @Transactional
+    public void cancelUpload(Long fileId, String userId) {
+        FileEntity file = authorize(fileId, userId, FileAction.COMMIT);
+        if (!STATUS_PENDING.equals(file.getStatus())) {
+            throw new ApiException("Upload is no longer pending", HttpStatus.CONFLICT);
+        }
+        storageService.delete(file.getBlobFileName());
+        fileRepository.delete(file);
+        releaseReservedQuota(file);
+    }
+
+    @Transactional
+    public void expirePendingUpload(FileEntity file) {
+        if (!STATUS_PENDING.equals(file.getStatus())) return;
+        storageService.delete(file.getBlobFileName());
+        fileRepository.delete(file);
+        releaseReservedQuota(file);
+    }
+
+    private void releaseReservedQuota(FileEntity file) {
+        if (file.getSize() != null && file.getSize() > 0) {
+            subscriptionService.releaseQuota(file.getUserId(), file.getSize());
+        }
     }
 
     // ── file queries ──────────────────────────────────────────────────────

@@ -41,6 +41,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long> {
 
     /** PENDING uploads for a user (used during the two-phase direct upload handshake). */
     List<FileEntity> findByUserIdAndStatusAndDeletedAtIsNull(String userId, String status);
+    List<FileEntity> findByStatusAndUploadExpiresAtBefore(String status, LocalDateTime cutoff);
 
     // ── analytics queries ───────────────────────────────────────────────────
 

@@ -2,6 +2,7 @@ package com.cloud.drive.controller;
 
 import com.cloud.drive.dto.FileResponseDto;
 import com.cloud.drive.dto.UploadTargetDto;
+import com.cloud.drive.dto.UploadStartRequest;
 import com.cloud.drive.dto.AiStatusDto;
 import com.cloud.drive.dto.ChatRequest;
 import com.cloud.drive.dto.ChatResponse;
@@ -26,7 +27,6 @@ import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBo
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 
 @RestController
 @RequestMapping("/api/files")
@@ -66,15 +66,10 @@ public class FileController {
     /** Phase 1 — returns a write SAS URL the client PUTs to directly. */
     @PostMapping("/upload/begin")
     public ResponseEntity<UploadTargetDto> beginUpload(
-            @RequestBody Map<String, Object> body,
+            @Valid @RequestBody UploadStartRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
-        long size = ((Number) body.get("size")).longValue();
-        String rawFileName = (String) body.get("rawFileName");
-        Long teamId = body.containsKey("teamId") ? ((Number) body.get("teamId")).longValue() : null;
-        
-        // If teamId is provided, we should ideally verify membership here too, 
-        // but FileService.beginUpload will need to handle it.
-        return ResponseEntity.ok(fileService.beginUpload(userDetails.getUsername(), size, rawFileName, teamId));
+        return ResponseEntity.ok(fileService.beginUpload(userDetails.getUsername(),
+                request.getSize(), request.getRawFileName(), request.getTeamId()));
     }
 
     /** Phase 2 — client confirms upload; backend verifies blob and finalizes record. */
@@ -83,6 +78,14 @@ public class FileController {
             @PathVariable Long fileId,
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(fileService.commitUpload(fileId, userDetails.getUsername()));
+    }
+
+    @DeleteMapping("/upload/{fileId}")
+    public ResponseEntity<Void> cancelUpload(
+            @PathVariable Long fileId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        fileService.cancelUpload(fileId, userDetails.getUsername());
+        return ResponseEntity.noContent().build();
     }
 
     // ── file queries ──────────────────────────────────────────────────────
