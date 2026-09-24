@@ -1,9 +1,9 @@
 package com.cloud.drive.controller;
 
-import com.cloud.drive.dto.FileResponseDto;
 import com.cloud.drive.dto.share.CreateShareRequest;
 import com.cloud.drive.dto.share.SharedFileResponse;
 import com.cloud.drive.dto.share.ShareResponse;
+import com.cloud.drive.dto.share.PublicShareResponse;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.model.FileShare;
@@ -73,9 +73,32 @@ public class ShareController {
         return shareService.getFilesSharedWithMe(ud.getUsername());
     }
 
+    @GetMapping("/api/shares/shared-with-me/{shareId}/stream")
+    public void streamRecipientShare(
+            @PathVariable Long shareId,
+            @RequestParam(defaultValue = "false") boolean download,
+            @AuthenticationPrincipal UserDetails ud,
+            HttpServletResponse response) throws IOException {
+        FileShare share = shareService.resolveRecipientShare(shareId, ud.getUsername());
+        if (download && "VIEW".equals(share.getPermission())) {
+            throw new ApiException("Download not permitted for this share", HttpStatus.FORBIDDEN);
+        }
+        FileEntity file = shareService.fileFor(share);
+        String contentType = file.getType() != null ? file.getType() : "application/octet-stream";
+        response.setContentType(contentType);
+        String disposition = download ? "attachment"
+                : (MimePolicy.shouldInline(file.getType()) ? "inline" : "attachment");
+        if ("VIEW".equals(share.getPermission()) && "attachment".equals(disposition)) {
+            throw new ApiException("Download not permitted for this share", HttpStatus.FORBIDDEN);
+        }
+        response.setHeader("Content-Disposition",
+                disposition + "; filename=\"" + FilenamePolicy.encodeFilename(file.getOriginalFileName()) + "\"");
+        blobStorage.streamToOutput(file.getBlobFileName(), response.getOutputStream());
+    }
+
     /** Public endpoint — no authentication required. */
     @GetMapping("/public/{token}")
-    public FileResponseDto resolvePublicLink(@PathVariable String token) {
+    public PublicShareResponse resolvePublicLink(@PathVariable String token) {
         return shareService.resolvePublicToken(token);
     }
 

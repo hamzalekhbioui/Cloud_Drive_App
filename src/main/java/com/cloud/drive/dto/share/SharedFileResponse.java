@@ -4,8 +4,8 @@ import java.time.LocalDateTime;
 
 /**
  * Minimal DTO returned to recipients in the "shared-with-me" list.
- * Intentionally omits the share token to prevent recipients from
- * gaining unauthenticated public-stream access (bypassing permission checks).
+ * Intentionally omits the share token. Recipients stream through an
+ * authenticated endpoint keyed by the share id.
  */
 public class SharedFileResponse {
 
@@ -16,7 +16,6 @@ public class SharedFileResponse {
     private String permission;
     private Long size;
     private String type;
-    private String token;
     private LocalDateTime createdAt;
     private LocalDateTime expiresAt;
 
@@ -40,9 +39,6 @@ public class SharedFileResponse {
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
-
-    public String getToken() { return token; }
-    public void setToken(String token) { this.token = token; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

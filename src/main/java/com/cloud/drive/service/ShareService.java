@@ -3,7 +3,7 @@ package com.cloud.drive.service;
 import com.cloud.drive.dto.share.CreateShareRequest;
 import com.cloud.drive.dto.share.SharedFileResponse;
 import com.cloud.drive.dto.share.ShareResponse;
-import com.cloud.drive.dto.FileResponseDto;
+import com.cloud.drive.dto.share.PublicShareResponse;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.model.FileShare;
@@ -14,8 +14,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -24,8 +22,6 @@ import java.util.stream.Collectors;
 
 @Service
 public class ShareService {
-
-    private static final Logger log = LoggerFactory.getLogger(ShareService.class);
 
     private final FileShareRepository shareRepo;
     private final FileRepository fileRepo;
@@ -108,30 +104,18 @@ public class ShareService {
     }
 
     /** Resolves a public token and returns the file metadata (no auth required). */
-    public FileResponseDto resolvePublicToken(String token) {
+    public PublicShareResponse resolvePublicToken(String token) {
         FileShare share = shareRepo.findByToken(token)
                 .orElseThrow(() -> new ApiException("Share link not found or expired", HttpStatus.NOT_FOUND));
-        if (share.getRevokedAt() != null) {
-            throw new ApiException("Share link has been revoked", HttpStatus.GONE);
-        }
-        if (share.getExpiresAt() != null && share.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new ApiException("Share link has expired", HttpStatus.GONE);
-        }
-        FileEntity file = fileRepo.findById(share.getFileId())
-                .orElseThrow(() -> new ApiException("File not found", HttpStatus.NOT_FOUND));
-
-        FileResponseDto dto = new FileResponseDto();
+        validateShare(share);
+        FileEntity file = availableFile(share);
+        PublicShareResponse dto = new PublicShareResponse();
         dto.setId(file.getId());
         dto.setOriginalFileName(file.getOriginalFileName());
         dto.setSize(file.getSize());
         dto.setType(file.getType());
         dto.setCreatedAt(file.getCreatedAt());
-        dto.setStarred(file.isStarred());
-        try {
-            dto.setUrl(blobStorage.generateSasUrlForBlob(file.getBlobFileName()));
-        } catch (Exception e) {
-            log.warn("Failed to generate SAS URL for shared file {}", file.getId(), e);
-        }
+        dto.setPermission(share.getPermission());
         return dto;
     }
 
@@ -142,19 +126,43 @@ public class ShareService {
     public FileShare resolveTokenForStream(String token) {
         FileShare share = shareRepo.findByToken(token)
                 .orElseThrow(() -> new ApiException("Share link not found or expired", HttpStatus.NOT_FOUND));
-        if (share.getRevokedAt() != null) {
-            throw new ApiException("Share link has been revoked", HttpStatus.GONE);
-        }
-        if (share.getExpiresAt() != null && share.getExpiresAt().isBefore(LocalDateTime.now())) {
-            throw new ApiException("Share link has expired", HttpStatus.GONE);
-        }
+        validateShare(share);
         return share;
     }
 
     /** Retrieve the file entity referenced by a share record. */
     public FileEntity fileFor(FileShare share) {
-        return fileRepo.findById(share.getFileId())
+        return availableFile(share);
+    }
+
+    public FileShare resolveRecipientShare(Long shareId, String recipientEmail) {
+        FileShare share = shareRepo.findById(shareId)
+                .orElseThrow(() -> new ApiException("Share not found", HttpStatus.NOT_FOUND));
+        if (share.getSharedWithEmail() == null
+                || !share.getSharedWithEmail().equalsIgnoreCase(recipientEmail)) {
+            throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
+        }
+        validateShare(share);
+        availableFile(share);
+        return share;
+    }
+
+    private FileEntity availableFile(FileShare share) {
+        FileEntity file = fileRepo.findById(share.getFileId())
                 .orElseThrow(() -> new ApiException("File not found", HttpStatus.NOT_FOUND));
+        if (file.getDeletedAt() != null || !"ACTIVE".equals(file.getStatus())) {
+            throw new ApiException("File is no longer available", HttpStatus.GONE);
+        }
+        return file;
+    }
+
+    private void validateShare(FileShare share) {
+        if (share.getRevokedAt() != null) {
+            throw new ApiException("Share link has been revoked", HttpStatus.GONE);
+        }
+        if (share.getExpiresAt() != null && !share.getExpiresAt().isAfter(LocalDateTime.now())) {
+            throw new ApiException("Share link has expired", HttpStatus.GONE);
+        }
     }
 
     /** Maps a share to the owner-facing response (includes token). */
@@ -186,7 +194,6 @@ public class ShareService {
         r.setFileName(fileName);
         r.setOwnerEmail(s.getOwnerEmail());
         r.setPermission(s.getPermission());
-        r.setToken(s.getToken());
         r.setCreatedAt(s.getCreatedAt());
         r.setExpiresAt(s.getExpiresAt());
         if (file != null) {

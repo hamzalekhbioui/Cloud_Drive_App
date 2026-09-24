@@ -10,7 +10,7 @@ interface PublicFile {
   size: number
   type: string
   createdAt: string
-  url: string
+  permission: 'VIEW' | 'DOWNLOAD'
 }
 
 export default function PublicSharePage() {
@@ -74,9 +74,11 @@ export default function PublicSharePage() {
                 View file
               </a>
             )}
-            <button onClick={handleDownload} className="btn btn-accent" style={{ height: 48, padding: '0 24px', fontSize: 15 }}>
-              <Icon name="download" size={18} /> Download
-            </button>
+            {file?.permission === 'DOWNLOAD' && (
+              <button onClick={handleDownload} className="btn btn-accent" style={{ height: 48, padding: '0 24px', fontSize: 15 }}>
+                <Icon name="download" size={18} /> Download
+              </button>
+            )}
           </div>
 
           <div style={{ marginTop: 40, paddingTop: 32, borderTop: '1px solid var(--line)', fontSize: 12, color: 'var(--ink-4)' }}>

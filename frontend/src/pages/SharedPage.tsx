@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { getSharedWithMe, type ShareItem } from '../api/shares'
+import { fetchSharedFile, getSharedWithMe, type SharedWithMeItem } from '../api/shares'
 import Icon from '../components/Icon'
 import { fileKind, TYPE_COLORS } from '../utils/files'
 
 export default function SharedPage() {
-  const [items, setItems] = useState<ShareItem[]>([])
+  const [items, setItems] = useState<SharedWithMeItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -48,10 +48,27 @@ export default function SharedPage() {
   )
 }
 
-function SharedRow({ item }: { item: ShareItem }) {
+function SharedRow({ item }: { item: SharedWithMeItem }) {
   const kind = fileKind(item.fileName.split('.').pop() ?? '')
   const color = TYPE_COLORS[kind] ?? 'var(--ink-3)'
-  const streamUrl = `/api/shares/public/${item.token}/stream`
+  async function openFile(download: boolean) {
+    const popup = download ? null : window.open('', '_blank')
+    try {
+      const { data } = await fetchSharedFile(item.id, download)
+      const url = URL.createObjectURL(data)
+      if (download) {
+        const link = document.createElement('a')
+        link.href = url
+        link.download = item.fileName
+        link.click()
+      } else if (popup) {
+        popup.location.href = url
+      }
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000)
+    } catch {
+      popup?.close()
+    }
+  }
 
   return (
     <div style={{
@@ -80,9 +97,8 @@ function SharedRow({ item }: { item: ShareItem }) {
           {item.permission}
         </span>
         <a
-          href={streamUrl}
-          target="_blank"
-          rel="noreferrer"
+          href="#"
+          onClick={(event) => { event.preventDefault(); void openFile(false) }}
           className="btn"
           style={{ height: 32, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
         >
@@ -91,8 +107,8 @@ function SharedRow({ item }: { item: ShareItem }) {
         </a>
         {item.permission === 'DOWNLOAD' && (
           <a
-            href={streamUrl}
-            download={item.fileName}
+            href="#"
+            onClick={(event) => { event.preventDefault(); void openFile(true) }}
             className="btn"
             style={{ height: 32, fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 5 }}
           >

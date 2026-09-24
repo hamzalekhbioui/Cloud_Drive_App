@@ -13,6 +13,18 @@ export interface ShareItem {
   publicLink?: string
 }
 
+export interface SharedWithMeItem {
+  id: number
+  fileId: number
+  fileName: string
+  ownerEmail: string
+  permission: 'VIEW' | 'DOWNLOAD'
+  size?: number
+  type?: string
+  createdAt: string
+  expiresAt: string | null
+}
+
 export interface CreateSharePayload {
   sharedWithEmail?: string | null
   permission?: 'VIEW' | 'DOWNLOAD'
@@ -32,7 +44,13 @@ export const revokeShare = (shareId: number) =>
   client.delete(`/shares/${shareId}`)
 
 export const getSharedWithMe = () =>
-  client.get<ShareItem[]>('/shares/shared-with-me')
+  client.get<SharedWithMeItem[]>('/shares/shared-with-me')
+
+export const fetchSharedFile = (shareId: number, download = false) =>
+  client.get<Blob>(`/shares/shared-with-me/${shareId}/stream`, {
+    params: { download },
+    responseType: 'blob',
+  })
 
 export const resolvePublicLink = (token: string) =>
   client.get(`/shares/public/${token}`)
