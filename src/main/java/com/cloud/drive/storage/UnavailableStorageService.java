@@ -15,4 +15,5 @@ public class UnavailableStorageService implements StorageService {
     public void streamTo(String blobKey, long[] byteRange, OutputStream out) { throw unavailable(); }
     public void delete(String blobKey) { throw unavailable(); }
     public long assertLength(String blobKey, long expected) { throw unavailable(); }
+    public void verifyContentAndSetHeaders(String blobKey, String expectedContentType, String fileName) { throw unavailable(); }
 }

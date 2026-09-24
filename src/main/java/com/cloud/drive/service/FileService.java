@@ -214,8 +214,14 @@ public class FileService {
         }
         try {
             storageService.assertLength(f.getBlobFileName(), f.getSize());
+            storageService.verifyContentAndSetHeaders(
+                    f.getBlobFileName(), f.getType(), f.getOriginalFileName());
         } catch (RuntimeException ex) {
-            storageService.delete(f.getBlobFileName());
+            try {
+                storageService.delete(f.getBlobFileName());
+            } catch (RuntimeException cleanupFailure) {
+                log.error("Failed to delete rejected upload blob {}", f.getBlobFileName(), cleanupFailure);
+            }
             fileRepository.delete(f);
             releaseReservedQuota(f);
             throw ex;

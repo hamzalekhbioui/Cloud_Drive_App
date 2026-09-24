@@ -82,6 +82,23 @@ public final class MimePolicy {
                     "File type not permitted: " + mimeType,
                     HttpStatus.UNSUPPORTED_MEDIA_TYPE);
         }
+
+    }
+
+    /**
+     * Tika may report generic text types for formats whose extension carries
+     * useful context. Binary formats must still match exactly.
+     */
+    public static boolean isCompatible(String expected, String detected) {
+        if (expected == null || detected == null) return false;
+        if (expected.equalsIgnoreCase(detected)) return true;
+        return switch (expected.toLowerCase()) {
+            case "text/csv", "application/json", "text/plain" ->
+                    detected.equalsIgnoreCase("text/plain")
+                            || detected.equalsIgnoreCase("text/csv")
+                            || detected.equalsIgnoreCase("application/json");
+            default -> false;
+        };
     }
 
     /**

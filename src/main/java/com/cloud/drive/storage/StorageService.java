@@ -30,4 +30,10 @@ public interface StorageService {
      * @throws com.cloud.drive.exception.ApiException if the size mismatch or blob is missing
      */
     long assertLength(String blobKey, long expected);
+
+    /**
+     * Inspect the committed object, verify its detected MIME type, and apply
+     * server-owned response headers before the object becomes active.
+     */
+    void verifyContentAndSetHeaders(String blobKey, String expectedContentType, String fileName);
 }

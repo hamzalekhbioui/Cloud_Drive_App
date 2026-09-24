@@ -7,6 +7,7 @@ import com.cloud.drive.model.TeamMember;
 import com.cloud.drive.repository.FileRepository;
 import com.cloud.drive.repository.FolderRepository;
 import com.cloud.drive.repository.TeamMemberRepository;
+import com.cloud.drive.storage.StorageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -35,6 +36,7 @@ class FileServiceTest {
     @Mock private FolderRepository folderRepository;
     @Mock private SubscriptionService subscriptionService;
     @Mock private TeamMemberRepository teamMemberRepository;
+    @Mock private StorageService storageService;
 
     @InjectMocks private FileService fileService;
 
@@ -228,5 +230,46 @@ class FileServiceTest {
         assertThatThrownBy(() -> fileService.findOwnedForStream(42L, OTHER_USER))
                 .isInstanceOf(ApiException.class)
                 .hasFieldOrPropertyWithValue("status", HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void commitUpload_verifiesContentBeforeActivating() {
+        FileEntity pending = ownedFile();
+        pending.setStatus("PENDING");
+        pending.setSize(1024L);
+        pending.setType("application/pdf");
+        when(fileRepository.findById(42L)).thenReturn(Optional.of(pending));
+        when(fileRepository.save(any(FileEntity.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        FileResponseDto result = fileService.commitUpload(42L, OWNER);
+
+        assertThat(result.getType()).isEqualTo("application/pdf");
+        assertThat(pending.getStatus()).isEqualTo("ACTIVE");
+        verify(storageService).assertLength("uuid-report.pdf", 1024L);
+        verify(storageService).verifyContentAndSetHeaders(
+                "uuid-report.pdf", "application/pdf", "report.pdf");
+        verify(storageService, never()).delete(anyString());
+    }
+
+    @Test
+    void commitUpload_rejectsContentMismatchAndReleasesReservation() {
+        FileEntity pending = ownedFile();
+        pending.setStatus("PENDING");
+        pending.setSize(1024L);
+        pending.setType("application/pdf");
+        when(fileRepository.findById(42L)).thenReturn(Optional.of(pending));
+        doThrow(new ApiException("Uploaded content does not match the declared file type",
+                HttpStatus.UNSUPPORTED_MEDIA_TYPE))
+                .when(storageService)
+                .verifyContentAndSetHeaders("uuid-report.pdf", "application/pdf", "report.pdf");
+
+        assertThatThrownBy(() -> fileService.commitUpload(42L, OWNER))
+                .isInstanceOf(ApiException.class)
+                .hasFieldOrPropertyWithValue("status", HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+
+        verify(storageService).delete("uuid-report.pdf");
+        verify(fileRepository).delete(pending);
+        verify(subscriptionService).releaseQuota(OWNER, 1024L);
+        verify(fileRepository, never()).save(any(FileEntity.class));
     }
 }

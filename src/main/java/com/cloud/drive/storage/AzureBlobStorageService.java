@@ -4,9 +4,12 @@ import com.azure.storage.blob.BlobClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceClient;
 import com.azure.storage.blob.models.BlobRange;
+import com.azure.storage.blob.models.BlobHttpHeaders;
 import com.azure.storage.blob.sas.BlobSasPermission;
 import com.azure.storage.blob.sas.BlobServiceSasSignatureValues;
 import com.cloud.drive.exception.ApiException;
+import com.cloud.drive.util.MimePolicy;
+import org.apache.tika.Tika;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
@@ -21,6 +24,7 @@ import java.time.OffsetDateTime;
 @ConditionalOnProperty(name = "azure.storage.enabled", havingValue = "true")
 public class AzureBlobStorageService implements StorageService {
 
+    private static final Tika TIKA = new Tika();
     private final BlobServiceClient client;
     private final String container;
 
@@ -75,6 +79,30 @@ public class AzureBlobStorageService implements StorageService {
                     HttpStatus.BAD_REQUEST);
         }
         return actual;
+    }
+
+    @Override
+    public void verifyContentAndSetHeaders(String blobKey, String expectedContentType, String fileName) {
+        requireAzure();
+        BlobClient blob = containerClient().getBlobClient(blobKey);
+        String detected;
+        try (InputStream input = blob.openInputStream()) {
+            detected = TIKA.detect(input, fileName);
+        } catch (java.io.IOException e) {
+            throw new ApiException("Unable to inspect uploaded file content", HttpStatus.UNPROCESSABLE_ENTITY);
+        }
+
+        if (!MimePolicy.isCompatible(expectedContentType, detected)) {
+            blob.deleteIfExists();
+            throw new ApiException(
+                    "Uploaded content does not match the declared file type",
+                    HttpStatus.UNSUPPORTED_MEDIA_TYPE);
+        }
+
+        blob.setHttpHeaders(new BlobHttpHeaders()
+                .setContentType(expectedContentType)
+                .setContentDisposition("attachment")
+                .setCacheControl("no-store"));
     }
 
     @Override
