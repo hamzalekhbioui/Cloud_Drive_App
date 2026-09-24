@@ -319,13 +319,20 @@ public class FileService {
     @Transactional
     public void permanentlyDeleteFile(Long fileId, String userId) {
         FileEntity file = authorize(fileId, userId, FileAction.PURGE);
+        permanentlyDeleteEntity(file);
+    }
+
+    @Transactional
+    public void purgeExpiredTrash(FileEntity file) {
+        if (file.getDeletedAt() == null || STATUS_PENDING.equals(file.getStatus())) return;
+        permanentlyDeleteEntity(file);
+    }
+
+    private void permanentlyDeleteEntity(FileEntity file) {
         blobStorageService.deleteFile(file.getBlobFileName());
         if (aiProcessingService != null) aiProcessingService.deleteForFile(file.getId());
         fileRepository.delete(file);
-        // Release quota so the usedBytes counter stays accurate
-        if (file.getSize() != null && file.getSize() > 0) {
-            subscriptionService.releaseQuota(userId, file.getSize());
-        }
+        releaseReservedQuota(file);
     }
 
     @Transactional

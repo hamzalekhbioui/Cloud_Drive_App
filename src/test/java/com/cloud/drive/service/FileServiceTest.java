@@ -141,6 +141,27 @@ class FileServiceTest {
     }
 
     @Test
+    void purgeExpiredTrash_removesOldTrashedFileAndReleasesQuota() {
+        FileEntity file = ownedFile();
+        file.setDeletedAt(LocalDateTime.now().minusDays(31));
+
+        fileService.purgeExpiredTrash(file);
+
+        verify(blobStorageService).deleteFile("uuid-report.pdf");
+        verify(fileRepository).delete(file);
+        verify(subscriptionService).releaseQuota(OWNER, 1024L);
+    }
+
+    @Test
+    void purgeExpiredTrash_doesNothingForActiveFile() {
+        FileEntity file = ownedFile();
+
+        fileService.purgeExpiredTrash(file);
+
+        verifyNoInteractions(blobStorageService, fileRepository, subscriptionService);
+    }
+
+    @Test
     void toggleStar_flipsValue() {
         FileEntity file = ownedFile();
         when(fileRepository.findById(42L)).thenReturn(Optional.of(file));

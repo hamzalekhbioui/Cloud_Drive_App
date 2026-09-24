@@ -33,6 +33,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long> {
     // ── existing queries ────────────────────────────────────────────────────
     List<FileEntity> findByUserIdAndDeletedAtIsNull(String userId);
     List<FileEntity> findByUserIdAndDeletedAtIsNotNull(String userId);
+    List<FileEntity> findByDeletedAtBeforeAndStatusNot(LocalDateTime cutoff, String status);
     List<FileEntity> findByUserIdAndStarredTrueAndDeletedAtIsNull(String userId);
     List<FileEntity> findByTeamIdAndDeletedAtIsNull(Long teamId);
     
