@@ -45,3 +45,8 @@ project.zip
 frontend/.env
 .env.*
 frontend/.env.*
+*.pem
+*.p12
+*.pfx
+*.key
+secrets/
