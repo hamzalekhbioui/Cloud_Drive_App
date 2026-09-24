@@ -47,3 +47,5 @@ export const updateProfile      = (name: string)              => client.put('/se
 export const updatePassword     = (currentPassword: string, newPassword: string) =>
   client.put('/settings/password', { currentPassword, newPassword })
 export const regenerateApiToken = ()                           => client.post<{ token: string }>('/settings/api-token')
+export const deleteAccount       = (currentPassword?: string) =>
+  client.delete('/settings/account', { data: { currentPassword, confirmation: true } })

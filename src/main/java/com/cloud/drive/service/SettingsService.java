@@ -131,6 +131,20 @@ public class SettingsService {
         userRepository.save(user);
     }
 
+    @Transactional
+    public void deleteAccount(String userId, DeleteAccountRequest req) {
+        User user = findUser(userId);
+        if (user.getPassword() != null
+                && (req.getCurrentPassword() == null
+                || !passwordEncoder.matches(req.getCurrentPassword(), user.getPassword()))) {
+            throw new ApiException("Current password is incorrect", HttpStatus.BAD_REQUEST);
+        }
+
+        user.setStatus(User.STATUS_DELETED);
+        user.setTokensValidFrom(LocalDateTime.now());
+        userRepository.save(user);
+    }
+
     // ── POST /api/settings/api-token ─────────────────────────────────────────
 
     @Transactional

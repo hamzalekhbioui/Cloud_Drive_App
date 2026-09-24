@@ -54,6 +54,15 @@ public class SettingsController {
         return ResponseEntity.noContent().build();
     }
 
+    /** DELETE /api/settings/account — soft-delete the account and revoke existing JWTs. */
+    @DeleteMapping("/account")
+    public ResponseEntity<Void> deleteAccount(
+            @Valid @RequestBody DeleteAccountRequest req,
+            @AuthenticationPrincipal UserDetails user) {
+        settingsService.deleteAccount(user.getUsername(), req);
+        return ResponseEntity.noContent().build();
+    }
+
     /** POST /api/settings/api-token — regenerate the user's API token. */
     @PostMapping("/api-token")
     public ResponseEntity<Map<String, String>> regenerateToken(

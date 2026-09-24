@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   getSettings, updatePreferences, updateProfile,
-  updatePassword, regenerateApiToken,
+  updatePassword, regenerateApiToken, deleteAccount,
 } from '../api/settings'
 import type { SettingsData } from '../api/settings'
 import { useAuth } from '../context/AuthContext'
@@ -53,7 +53,7 @@ const SECTIONS = [
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 export default function SettingsPage() {
-  const { login } = useAuth()
+  const { login, logout } = useAuth()
   const { theme, setTheme, density, setDensity } = useTheme()
 
   const [data,    setData]    = useState<SettingsData | null>(null)
@@ -170,7 +170,7 @@ export default function SettingsPage() {
               }} onToast={showToast} />}
               {section === 'notifications' && <NotificationsSection data={data} onToggle={(k, v) => savePref({ [k]: v })} />}
               {section === 'preferences'   && <PreferencesSection  data={data} onChange={(k, v) => savePref({ [k]: v })} />}
-              {section === 'advanced'      && <AdvancedSection     data={data} onNewToken={(t) => setData({ ...data, apiToken: t })} onToggle={(k, v) => savePref({ [k]: v })} onToast={showToast} />}
+              {section === 'advanced'      && <AdvancedSection     data={data} onNewToken={(t) => setData({ ...data, apiToken: t })} onToggle={(k, v) => savePref({ [k]: v })} onToast={showToast} onDelete={async (password) => { await deleteAccount(password); logout(); window.location.assign('/login') }} />}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -649,11 +649,12 @@ function PreferencesSection({ data, onChange }: {
 }
 
 // ── Advanced ─────────────────────────────────────────────────────────────────
-function AdvancedSection({ data, onNewToken, onToggle, onToast }: {
+function AdvancedSection({ data, onNewToken, onToggle, onToast, onDelete }: {
   data: SettingsData
   onNewToken: (t: string) => void
   onToggle: (key: string, value: boolean) => void
   onToast: (msg: string, type?: ToastState['type']) => void
+  onDelete: (password?: string) => Promise<void>
 }) {
   const [regenerating, setRegenerating] = useState(false)
   const [copied, setCopied]             = useState(false)
@@ -713,7 +714,16 @@ function AdvancedSection({ data, onNewToken, onToggle, onToast }: {
         <p className="sett-danger-desc">Destructive actions — these cannot be undone.</p>
         <button type="button" className="btn"
           style={{ background: 'color-mix(in oklab, var(--danger) 12%, var(--surface))', color: 'var(--danger)', border: '1px solid color-mix(in oklab, var(--danger) 30%, transparent)' }}
-          onClick={() => onToast('Account deletion is disabled in this demo.', 'error')}
+          onClick={async () => {
+            if (!window.confirm('Delete your account? This signs you out immediately.')) return
+            const password = data.hasPassword ? window.prompt('Enter your current password to confirm:') : undefined
+            if (data.hasPassword && !password) return
+            try {
+              await onDelete(password ?? undefined)
+            } catch {
+              onToast('Account deletion failed. Check your password and try again.', 'error')
+            }
+          }}
         >
           Delete account
         </button>
