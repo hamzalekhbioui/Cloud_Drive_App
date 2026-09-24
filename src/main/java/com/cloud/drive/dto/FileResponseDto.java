@@ -11,6 +11,7 @@ public class FileResponseDto {
     private LocalDateTime createdAt;
     private boolean starred;
     private Long teamId;
+    private Long folderId;
     private LocalDateTime deletedAt;
     private String userId;
     private String status;
@@ -43,6 +44,8 @@ public class FileResponseDto {
 
     public Long getTeamId() { return teamId; }
     public void setTeamId(Long teamId) { this.teamId = teamId; }
+    public Long getFolderId() { return folderId; }
+    public void setFolderId(Long folderId) { this.folderId = folderId; }
 
     public LocalDateTime getDeletedAt() { return deletedAt; }
     public void setDeletedAt(LocalDateTime deletedAt) { this.deletedAt = deletedAt; }

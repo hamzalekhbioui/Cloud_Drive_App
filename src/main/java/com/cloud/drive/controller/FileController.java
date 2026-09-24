@@ -6,6 +6,7 @@ import com.cloud.drive.dto.UploadStartRequest;
 import com.cloud.drive.dto.AiStatusDto;
 import com.cloud.drive.dto.ChatRequest;
 import com.cloud.drive.dto.ChatResponse;
+import com.cloud.drive.dto.file.UpdateFileNameRequest;
 import com.cloud.drive.service.AiChatService;
 import com.cloud.drive.service.AiProcessingService;
 import com.cloud.drive.model.FileEntity;
@@ -187,6 +188,20 @@ public class FileController {
             @PathVariable Long fileId,
             @AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(fileService.toggleStar(fileId, userDetails.getUsername()));
+    }
+
+    @PatchMapping("/{fileId}/name")
+    public ResponseEntity<FileResponseDto> renameFile(
+            @PathVariable Long fileId, @Valid @RequestBody UpdateFileNameRequest request,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(fileService.renameFile(fileId, userDetails.getUsername(), request.getName()));
+    }
+
+    @PatchMapping("/{fileId}/folder")
+    public ResponseEntity<FileResponseDto> moveFile(
+            @PathVariable Long fileId, @RequestParam(required = false) Long folderId,
+            @AuthenticationPrincipal UserDetails userDetails) {
+        return ResponseEntity.ok(fileService.moveFile(fileId, userDetails.getUsername(), folderId));
     }
 
     @GetMapping("/{fileId}/ai-status")

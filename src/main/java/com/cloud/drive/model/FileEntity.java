@@ -21,6 +21,7 @@ public class FileEntity {
     private String type;
     private String userId;
     private Long teamId;
+    private Long folderId;
     private LocalDateTime createdAt;
     @Column(nullable = false, columnDefinition = "boolean default false")
     private boolean starred = false;
@@ -54,6 +55,8 @@ public class FileEntity {
 
     public Long getTeamId() { return teamId; }
     public void setTeamId(Long teamId) { this.teamId = teamId; }
+    public Long getFolderId() { return folderId; }
+    public void setFolderId(Long folderId) { this.folderId = folderId; }
 
     public LocalDateTime getCreatedAt() { return createdAt; }
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }

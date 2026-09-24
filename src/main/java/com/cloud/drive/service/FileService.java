@@ -6,6 +6,7 @@ import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.model.TeamMember;
 import com.cloud.drive.repository.FileRepository;
+import com.cloud.drive.repository.FolderRepository;
 import com.cloud.drive.repository.FileAiProcessingRepository;
 import com.cloud.drive.model.FileAiProcessing;
 import com.cloud.drive.repository.TeamMemberRepository;
@@ -39,11 +40,12 @@ public class FileService {
     private static final String STATUS_PENDING = "PENDING";
     private static final long SAS_UPLOAD_TTL_SECONDS = 600;
     private static final Duration UPLOAD_RETENTION = Duration.ofSeconds(SAS_UPLOAD_TTL_SECONDS);
-    private enum FileAction { READ, COMMIT, DELETE, RESTORE, PURGE, STAR, AI }
+    private enum FileAction { READ, COMMIT, DELETE, RESTORE, PURGE, STAR, AI, ORGANIZE }
 
     private final BlobStorageService blobStorageService;
     private final StorageService storageService;
     private final FileRepository fileRepository;
+    private final FolderRepository folderRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final SubscriptionService subscriptionService;
     private final FileAiProcessingRepository aiProcessingRepository;
@@ -53,9 +55,10 @@ public class FileService {
     public FileService(BlobStorageService blobStorageService,
                        StorageService storageService,
                        FileRepository fileRepository,
+                       FolderRepository folderRepository,
                        TeamMemberRepository teamMemberRepository,
                        SubscriptionService subscriptionService) {
-        this(blobStorageService, storageService, fileRepository, teamMemberRepository,
+        this(blobStorageService, storageService, fileRepository, folderRepository, teamMemberRepository,
                 subscriptionService, null, null, null);
     }
 
@@ -63,6 +66,7 @@ public class FileService {
     public FileService(BlobStorageService blobStorageService,
                        StorageService storageService,
                        FileRepository fileRepository,
+                       FolderRepository folderRepository,
                        TeamMemberRepository teamMemberRepository,
                        SubscriptionService subscriptionService,
                        FileAiProcessingRepository aiProcessingRepository,
@@ -71,6 +75,7 @@ public class FileService {
         this.blobStorageService = blobStorageService;
         this.storageService = storageService;
         this.fileRepository = fileRepository;
+        this.folderRepository = folderRepository;
         this.teamMemberRepository = teamMemberRepository;
         this.subscriptionService = subscriptionService;
         this.aiProcessingRepository = aiProcessingRepository;
@@ -342,6 +347,30 @@ public class FileService {
         return mapToDto(fileRepository.save(file));
     }
 
+    @Transactional
+    public FileResponseDto renameFile(Long fileId, String userId, String name) {
+        FileEntity file = authorize(fileId, userId, FileAction.ORGANIZE);
+        String safeName = FilenamePolicy.sanitize(name);
+        FilenamePolicy.extension(safeName);
+        file.setOriginalFileName(safeName);
+        return mapToDto(fileRepository.save(file));
+    }
+
+    @Transactional
+    public FileResponseDto moveFile(Long fileId, String userId, Long folderId) {
+        FileEntity file = authorize(fileId, userId, FileAction.ORGANIZE);
+        if (folderId != null) {
+            var folder = folderRepository.findById(folderId)
+                    .orElseThrow(() -> new ApiException("Folder not found", HttpStatus.NOT_FOUND));
+            if (!java.util.Objects.equals(file.getTeamId(), folder.getTeamId())
+                    || (file.getTeamId() == null && !userId.equals(folder.getUserId()))) {
+                throw new ApiException("Folder is outside the file's ownership scope", HttpStatus.FORBIDDEN);
+            }
+        }
+        file.setFolderId(folderId);
+        return mapToDto(fileRepository.save(file));
+    }
+
     // ── private helpers ────────────────────────────────────────────────────
 
     private FileEntity authorize(Long fileId, String userId, FileAction action) {
@@ -430,6 +459,7 @@ public class FileService {
         dto.setCreatedAt(entity.getCreatedAt());
         dto.setStarred(entity.isStarred());
         dto.setTeamId(entity.getTeamId());
+        dto.setFolderId(entity.getFolderId());
         dto.setDeletedAt(entity.getDeletedAt());
         dto.setUserId(entity.getUserId());
         dto.setStatus(entity.getStatus());

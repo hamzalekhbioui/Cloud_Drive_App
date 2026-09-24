@@ -12,6 +12,7 @@ export interface FileItem {
   deletedAt: string | null
   status: 'ACTIVE' | 'PENDING'
   userId: string
+  folderId?: number | null
   aiStatus?: 'PENDING' | 'PROCESSING' | 'COMPLETED' | 'ERROR' | 'UNSUPPORTED'
   aiError?: string | null
   aiSummary?: string | null
@@ -47,6 +48,10 @@ export const getMyFiles = () => client.get<FileItem[]>('/files/me')
 export const getStarredFiles = () => client.get<FileItem[]>('/files/starred')
 export const getTrashFiles = () => client.get<FileItem[]>('/files/trash')
 export const getTeamFiles = (teamId: number) => client.get<FileItem[]>(`/files/team/${teamId}`)
+export const renameFile = (fileId: number, name: string) =>
+  client.patch<FileItem>(`/files/${fileId}/name`, { name })
+export const moveFile = (fileId: number, folderId: number | null) =>
+  client.patch<FileItem>(`/files/${fileId}/folder`, null, { params: { folderId } })
 
 export const deleteFile = (fileId: number) => client.delete(`/files/${fileId}`)
 export const restoreFile = (fileId: number) => client.post(`/files/${fileId}/restore`)

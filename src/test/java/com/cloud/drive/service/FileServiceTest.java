@@ -5,6 +5,7 @@ import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.model.TeamMember;
 import com.cloud.drive.repository.FileRepository;
+import com.cloud.drive.repository.FolderRepository;
 import com.cloud.drive.repository.TeamMemberRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ class FileServiceTest {
 
     @Mock private BlobStorageService blobStorageService;
     @Mock private FileRepository fileRepository;
+    @Mock private FolderRepository folderRepository;
     @Mock private SubscriptionService subscriptionService;
     @Mock private TeamMemberRepository teamMemberRepository;
 
