@@ -2,22 +2,21 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { getMyFiles, starFile, uploadFile } from '../api/files'
 import type { FileItem } from '../api/files'
-import { getOverview } from '../api/analytics'
-import type { Overview } from '../api/analytics'
+import { getBreakdown, getOverview } from '../api/analytics'
+import type { BreakdownItem, Overview } from '../api/analytics'
 import { useAuth } from '../context/AuthContext'
 import Icon from '../components/Icon'
 import FileTile from '../components/FileTile'
 import FilePreviewModal from '../components/FilePreviewModal'
 import ShareModal from '../components/ShareModal'
-import {
-  formatBytes, fileKind, typeLabel, TYPE_COLORS,
-} from '../utils/files'
+import { formatBytes } from '../utils/files'
 
 export default function DashboardPage() {
   const { user } = useAuth()
   const navigate = useNavigate()
   const [files, setFiles] = useState<FileItem[]>([])
   const [overview, setOverview] = useState<Overview | null>(null)
+  const [breakdown, setBreakdown] = useState<BreakdownItem[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
@@ -31,13 +30,14 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchFiles()
     fetchOverview()
+    fetchBreakdown()
   }, [])
 
   async function fetchFiles() {
     if (!user) { setLoading(false); return }
     try {
-      const { data } = await getMyFiles()
-      setFiles(data)
+      const { data } = await getMyFiles({ size: 12 })
+      setFiles(data.content)
     } catch {
       setError('Failed to load files.')
     } finally {
@@ -55,6 +55,16 @@ export default function DashboardPage() {
     }
   }
 
+  async function fetchBreakdown() {
+    if (!user) return
+    try {
+      const { data } = await getBreakdown()
+      setBreakdown(data)
+    } catch {
+      console.error('Failed to load storage breakdown.')
+    }
+  }
+
   async function doUpload(file: File) {
     if (!user) { navigate('/login'); return }
     setUploading(true); setUploadProgress(0); setError('')
@@ -62,6 +72,7 @@ export default function DashboardPage() {
       const data = await uploadFile(file, (pct) => setUploadProgress(pct))
       setFiles((prev) => [data, ...prev])
       void fetchOverview()
+      void fetchBreakdown()
     } catch (err: unknown) {
       const axiosErr = err as { response?: { status?: number; data?: { message?: string } }; message?: string; request?: unknown }
       if (axiosErr.response?.status === 413) {
@@ -105,11 +116,6 @@ export default function DashboardPage() {
 
   const used = files.reduce((s, f) => s + f.size, 0)
   const recents = [...files].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 6)
-
-  const byKind: Record<string, number> = {}
-  files.forEach((f) => { const k = fileKind(f.type); byKind[k] = (byKind[k] || 0) + f.size })
-  const breakdown = Object.entries(byKind).map(([k, v]) => ({ kind: k as ReturnType<typeof fileKind>, size: v })).sort((a, b) => b.size - a.size).slice(0, 6)
-  const breakdownTotal = breakdown.reduce((s, b) => s + b.size, 0) || 1
 
   const displayUsed = overview ? overview.totalStorageUsed : used
   const displayLimit = overview ? overview.totalStorageLimit : 1024 * 1024 * 1024 * 1024
@@ -177,10 +183,10 @@ export default function DashboardPage() {
             {breakdown.length === 0 ? (
               <div style={{ color: 'var(--ink-3)', fontSize: 13 }}>Upload files to see a breakdown.</div>
             ) : breakdown.map((b) => (
-              <div className="breakdown-row" key={b.kind}>
-                <div className="swatch" style={{ background: TYPE_COLORS[b.kind] }} />
-                <div className="name">{typeLabel(b.kind)}s</div>
-                <div className="bar-wrap"><div className="bar" style={{ width: `${(b.size / breakdownTotal) * 100}%`, background: TYPE_COLORS[b.kind] }} /></div>
+              <div className="breakdown-row" key={b.category}>
+                <div className="swatch" style={{ background: b.color }} />
+                <div className="name">{b.category}</div>
+                <div className="bar-wrap"><div className="bar" style={{ width: `${b.percentage}%`, background: b.color }} /></div>
                 <div className="size">{formatBytes(b.size)}</div>
               </div>
             ))}

@@ -12,6 +12,9 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Optional;
+import java.util.List;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -73,6 +76,28 @@ class AdminFileServiceTest {
         assertThatThrownBy(() -> service.purge(7L))
                 .isInstanceOf(ApiException.class)
                 .hasMessageContaining("File not found");
+    }
+
+    @Test
+    void listFiles_batchLoadsRelatedRowsForTheWholePage() {
+        FileEntity first = file();
+        FileEntity second = file();
+        second.setId(8L);
+        second.setOriginalFileName("photo.png");
+        PageRequest pageable = PageRequest.of(0, 20);
+        when(fileRepository.findAllForAdmin(isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), isNull(), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(first, second), pageable, 2));
+        when(aiRepository.findAllById(List.of(7L, 8L))).thenReturn(List.of());
+        when(shareRepository.findByFileIdInOrderByCreatedAtDesc(List.of(7L, 8L))).thenReturn(List.of());
+
+        var result = service.listFiles(null, null, null, null, null, null, null, pageable);
+
+        assertThat(result.getContent()).hasSize(2);
+        verify(aiRepository).findAllById(List.of(7L, 8L));
+        verify(shareRepository).findByFileIdInOrderByCreatedAtDesc(List.of(7L, 8L));
+        verify(shareRepository, never()).findByFileIdOrderByCreatedAtDesc(anyLong());
+        verify(fileRepository, never()).findById(anyLong());
     }
 
     private FileEntity file() {

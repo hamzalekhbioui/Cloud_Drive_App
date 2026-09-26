@@ -5,6 +5,7 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
@@ -12,6 +13,25 @@ import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 public interface SubscriptionRepository extends JpaRepository<Subscription, Long> {
+
+    /**
+     * Repairs every quota counter with one grouped aggregate/update instead of
+     * loading all subscriptions and issuing one SUM query per account.
+     */
+    @Modifying(clearAutomatically = true, flushAutomatically = true)
+    @Query(value = """
+            UPDATE subscriptions s
+               SET used_bytes = totals.actual_bytes
+              FROM (
+                    SELECT sub.id, COALESCE(SUM(f.size), 0) AS actual_bytes
+                      FROM subscriptions sub
+                      LEFT JOIN files f ON f.user_id = sub.user_email
+                     GROUP BY sub.id
+                   ) totals
+             WHERE s.id = totals.id
+               AND s.used_bytes IS DISTINCT FROM totals.actual_bytes
+            """, nativeQuery = true)
+    int reconcileUsedBytesFromFiles();
 
     @Query("""
             select s from Subscription s

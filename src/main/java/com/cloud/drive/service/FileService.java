@@ -22,14 +22,20 @@ import com.cloud.drive.ai.FileAiQueuedEvent;
 import org.springframework.web.multipart.MultipartFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -263,21 +269,21 @@ public class FileService {
 
     // ── file queries ──────────────────────────────────────────────────────
 
-    public List<FileResponseDto> getFilesByUser(String userId) {
-        return refreshAndMap(fileRepository.findByUserIdAndDeletedAtIsNull(userId));
+    public Page<FileResponseDto> getFilesByUser(String userId, String query, Pageable pageable) {
+        return refreshAndMap(fileRepository.findVisibleByUser(userId, normalizeQuery(query), pageable));
     }
 
-    public List<FileResponseDto> getStarredFiles(String userId) {
-        return refreshAndMap(fileRepository.findByUserIdAndStarredTrueAndDeletedAtIsNull(userId));
+    public Page<FileResponseDto> getStarredFiles(String userId, String query, Pageable pageable) {
+        return refreshAndMap(fileRepository.findVisibleStarredByUser(userId, normalizeQuery(query), pageable));
     }
 
-    public List<FileResponseDto> getTrashFiles(String userId) {
-        return refreshAndMap(fileRepository.findByUserIdAndDeletedAtIsNotNull(userId));
+    public Page<FileResponseDto> getTrashFiles(String userId, String query, Pageable pageable) {
+        return refreshAndMap(fileRepository.findTrashByUser(userId, normalizeQuery(query), pageable));
     }
 
-    public List<FileResponseDto> getTeamFiles(Long teamId, String userId) {
+    public Page<FileResponseDto> getTeamFiles(Long teamId, String userId, String query, Pageable pageable) {
         requireTeamMembership(teamId, userId);
-        return refreshAndMap(fileRepository.findActiveByTeamId(teamId));
+        return refreshAndMap(fileRepository.findVisibleByTeam(teamId, normalizeQuery(query), pageable));
     }
 
     public void streamFile(Long fileId, String userId, HttpServletResponse response) throws IOException {
@@ -442,11 +448,11 @@ public class FileService {
         }
     }
 
-    private List<FileResponseDto> refreshAndMap(List<FileEntity> entities) {
-        return entities.stream()
-                .filter(e -> STATUS_ACTIVE.equals(e.getStatus()) || e.getStatus() == null)
+    private Page<FileResponseDto> refreshAndMap(Page<FileEntity> entities) {
+        Map<Long, FileAiProcessing> aiByFileId = loadAiProcessing(entities.getContent());
+        List<FileResponseDto> content = entities.getContent().stream()
                 .map(entity -> {
-                    FileResponseDto dto = mapToDto(entity);
+                    FileResponseDto dto = mapToDto(entity, aiByFileId.get(entity.getId()));
                     if (entity.getBlobFileName() != null) {
                         try {
                             dto.setUrl(blobStorageService.generateSasUrlForBlob(entity.getBlobFileName()));
@@ -456,9 +462,24 @@ public class FileService {
                     }
                     return dto;
                 }).collect(Collectors.toList());
+        return new PageImpl<>(content, entities.getPageable(), entities.getTotalElements());
+    }
+
+    private Map<Long, FileAiProcessing> loadAiProcessing(List<FileEntity> entities) {
+        if (aiProcessingRepository == null || entities.isEmpty()) return Collections.emptyMap();
+        List<Long> ids = entities.stream().map(FileEntity::getId).toList();
+        return aiProcessingRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(FileAiProcessing::getFileId, Function.identity()));
     }
 
     private FileResponseDto mapToDto(FileEntity entity) {
+        FileAiProcessing ai = aiProcessingRepository == null || entity.getId() == null
+                ? null
+                : aiProcessingRepository.findById(entity.getId()).orElse(null);
+        return mapToDto(entity, ai);
+    }
+
+    private FileResponseDto mapToDto(FileEntity entity, FileAiProcessing ai) {
         FileResponseDto dto = new FileResponseDto();
         dto.setId(entity.getId());
         dto.setOriginalFileName(entity.getOriginalFileName());
@@ -472,14 +493,16 @@ public class FileService {
         dto.setDeletedAt(entity.getDeletedAt());
         dto.setUserId(entity.getUserId());
         dto.setStatus(entity.getStatus());
-        if (aiProcessingRepository != null) {
-            aiProcessingRepository.findById(entity.getId()).ifPresent(ai -> {
-                dto.setAiStatus(ai.getStatus());
-                dto.setAiError(ai.getError());
-                dto.setAiSummary(ai.getSummary());
-            });
+        if (ai != null) {
+            dto.setAiStatus(ai.getStatus());
+            dto.setAiError(ai.getError());
+            dto.setAiSummary(ai.getSummary());
         }
         return dto;
+    }
+
+    private static String normalizeQuery(String value) {
+        return value == null || value.isBlank() ? "" : value.trim();
     }
 
     private void queueAiProcessing(Long fileId) {

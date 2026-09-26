@@ -8,12 +8,15 @@ import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.model.FileShare;
 import com.cloud.drive.repository.FileRepository;
 import com.cloud.drive.repository.FileShareRepository;
+import com.cloud.drive.repository.SharedFileView;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -23,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -114,33 +118,31 @@ class ShareServiceTest {
     }
     @Test
     void getFilesSharedWithMe_returnsFilesForRecipient() {
-        FileShare share = new FileShare();
-        share.setFileId(10L);
-        share.setSharedWithEmail("bob@example.com");
-        share.setOwnerEmail("alice@example.com");
-        share.setExpiresAt(LocalDateTime.now().plusDays(1));
-        share.setPermission("VIEW");
-        
-        when(shareRepo.findBySharedWithEmail("bob@example.com")).thenReturn(List.of(share));
-        when(fileRepo.findById(10L)).thenReturn(Optional.of(file()));
+        SharedFileView view = org.mockito.Mockito.mock(SharedFileView.class);
+        when(view.getId()).thenReturn(5L);
+        when(view.getFileId()).thenReturn(10L);
+        when(view.getFileName()).thenReturn("report.pdf");
+        when(view.getOwnerEmail()).thenReturn("alice@example.com");
+        when(view.getPermission()).thenReturn("VIEW");
+        PageRequest pageable = PageRequest.of(0, 50);
+        when(shareRepo.findAvailableSharedWith(eq("bob@example.com"), any(LocalDateTime.class), eq(pageable)))
+                .thenReturn(new PageImpl<>(List.of(view), pageable, 1));
 
-        List<SharedFileResponse> results = shareService.getFilesSharedWithMe("bob@example.com");
+        var results = shareService.getFilesSharedWithMe("bob@example.com", pageable);
 
-        assertThat(results).hasSize(1);
-        assertThat(results.get(0).getFileName()).isEqualTo("report.pdf");
-        assertThat(results.get(0).getOwnerEmail()).isEqualTo("alice@example.com");
+        assertThat(results.getContent()).hasSize(1);
+        assertThat(results.getContent().get(0).getFileName()).isEqualTo("report.pdf");
+        assertThat(results.getContent().get(0).getOwnerEmail()).isEqualTo("alice@example.com");
+        verifyNoInteractions(fileRepo);
     }
 
     @Test
     void getFilesSharedWithMe_excludesRevokedShares() {
-        FileShare share = new FileShare();
-        share.setFileId(10L);
-        share.setSharedWithEmail("bob@example.com");
-        share.setRevokedAt(LocalDateTime.now());
+        PageRequest pageable = PageRequest.of(0, 50);
+        when(shareRepo.findAvailableSharedWith(eq("bob@example.com"), any(LocalDateTime.class), eq(pageable)))
+                .thenReturn(org.springframework.data.domain.Page.empty(pageable));
 
-        when(shareRepo.findBySharedWithEmail("bob@example.com")).thenReturn(List.of(share));
-
-        assertThat(shareService.getFilesSharedWithMe("bob@example.com")).isEmpty();
+        assertThat(shareService.getFilesSharedWithMe("bob@example.com", pageable)).isEmpty();
         verifyNoInteractions(fileRepo);
     }
 

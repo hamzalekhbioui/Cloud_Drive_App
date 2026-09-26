@@ -3,6 +3,7 @@ package com.cloud.drive.controller;
 import com.cloud.drive.dto.FileResponseDto;
 import com.cloud.drive.dto.UploadTargetDto;
 import com.cloud.drive.dto.UploadStartRequest;
+import com.cloud.drive.dto.PageResponse;
 import com.cloud.drive.dto.AiStatusDto;
 import com.cloud.drive.dto.ChatRequest;
 import com.cloud.drive.dto.ChatResponse;
@@ -25,13 +26,20 @@ import org.springframework.web.bind.annotation.*;
 import jakarta.validation.Valid;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import com.cloud.drive.util.PageLimits;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/files")
 public class FileController {
+
+    private static final Set<String> FILE_SORTS = Set.of(
+            "createdAt", "deletedAt", "originalFileName", "size", "type", "id");
 
     private final FileService fileService;
     private final AiChatService aiChatService;
@@ -92,28 +100,40 @@ public class FileController {
     // ── file queries ──────────────────────────────────────────────────────
 
     @GetMapping("/me")
-    public ResponseEntity<List<FileResponseDto>> getMyFiles(
+    public ResponseEntity<PageResponse<FileResponseDto>> getMyFiles(
+            @RequestParam(required = false) String q,
+            @PageableDefault(size = 50) Pageable pageable,
             @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(fileService.getFilesByUser(userDetails.getUsername()));
+        return ResponseEntity.ok(PageResponse.from(fileService.getFilesByUser(userDetails.getUsername(), q,
+                PageLimits.bounded(pageable, FILE_SORTS, "createdAt", Sort.Direction.DESC))));
     }
 
     @GetMapping("/starred")
-    public ResponseEntity<List<FileResponseDto>> getStarredFiles(
+    public ResponseEntity<PageResponse<FileResponseDto>> getStarredFiles(
+            @RequestParam(required = false) String q,
+            @PageableDefault(size = 50) Pageable pageable,
             @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(fileService.getStarredFiles(userDetails.getUsername()));
+        return ResponseEntity.ok(PageResponse.from(fileService.getStarredFiles(userDetails.getUsername(), q,
+                PageLimits.bounded(pageable, FILE_SORTS, "createdAt", Sort.Direction.DESC))));
     }
 
     @GetMapping("/trash")
-    public ResponseEntity<List<FileResponseDto>> getTrashFiles(
+    public ResponseEntity<PageResponse<FileResponseDto>> getTrashFiles(
+            @RequestParam(required = false) String q,
+            @PageableDefault(size = 50) Pageable pageable,
             @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(fileService.getTrashFiles(userDetails.getUsername()));
+        return ResponseEntity.ok(PageResponse.from(fileService.getTrashFiles(userDetails.getUsername(), q,
+                PageLimits.bounded(pageable, FILE_SORTS, "deletedAt", Sort.Direction.DESC))));
     }
 
     @GetMapping("/team/{teamId}")
-    public ResponseEntity<List<FileResponseDto>> getTeamFiles(
+    public ResponseEntity<PageResponse<FileResponseDto>> getTeamFiles(
             @PathVariable Long teamId,
+            @RequestParam(required = false) String q,
+            @PageableDefault(size = 50) Pageable pageable,
             @AuthenticationPrincipal UserDetails userDetails) {
-        return ResponseEntity.ok(fileService.getTeamFiles(teamId, userDetails.getUsername()));
+        return ResponseEntity.ok(PageResponse.from(fileService.getTeamFiles(teamId, userDetails.getUsername(), q,
+                PageLimits.bounded(pageable, FILE_SORTS, "createdAt", Sort.Direction.DESC))));
     }
 
     /**

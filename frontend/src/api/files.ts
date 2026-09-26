@@ -44,10 +44,33 @@ export interface UploadTarget {
   ttlSec: number
 }
 
-export const getMyFiles = () => client.get<FileItem[]>('/files/me')
-export const getStarredFiles = () => client.get<FileItem[]>('/files/starred')
-export const getTrashFiles = () => client.get<FileItem[]>('/files/trash')
-export const getTeamFiles = (teamId: number) => client.get<FileItem[]>(`/files/team/${teamId}`)
+export interface PageResponse<T> {
+  content: T[]
+  number: number
+  size: number
+  totalElements: number
+  totalPages: number
+  first: boolean
+  last: boolean
+}
+
+export interface FilePageOptions {
+  page?: number
+  size?: number
+  q?: string
+  sort?: string
+}
+
+const pageParams = (options: FilePageOptions = {}) => ({ size: 50, ...options })
+
+export const getMyFiles = (options?: FilePageOptions) =>
+  client.get<PageResponse<FileItem>>('/files/me', { params: pageParams(options) })
+export const getStarredFiles = (options?: FilePageOptions) =>
+  client.get<PageResponse<FileItem>>('/files/starred', { params: pageParams(options) })
+export const getTrashFiles = (options?: FilePageOptions) =>
+  client.get<PageResponse<FileItem>>('/files/trash', { params: pageParams(options) })
+export const getTeamFiles = (teamId: number, options?: FilePageOptions) =>
+  client.get<PageResponse<FileItem>>(`/files/team/${teamId}`, { params: pageParams(options) })
 export const renameFile = (fileId: number, name: string) =>
   client.patch<FileItem>(`/files/${fileId}/name`, { name })
 export const moveFile = (fileId: number, folderId: number | null) =>

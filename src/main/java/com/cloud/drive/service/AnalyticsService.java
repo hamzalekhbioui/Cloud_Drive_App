@@ -3,6 +3,7 @@ package com.cloud.drive.service;
 import com.cloud.drive.dto.analytics.*;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.repository.FileRepository;
+import com.cloud.drive.repository.DailyUploadAggregate;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
@@ -90,16 +91,12 @@ public class AnalyticsService {
 
     public List<ActivityItemDto> getActivity(String userId) {
         LocalDateTime since = LocalDateTime.now().minusDays(30);
-        List<FileEntity> files = fileRepository.findActiveByUserCreatedAtAfter(userId, since);
+        List<DailyUploadAggregate> rows = fileRepository.aggregateDailyUploads(userId, since);
 
         // Group uploaded size + count by calendar date
         Map<LocalDate, long[]> byDate = new TreeMap<>();
-        for (FileEntity f : files) {
-            if (f.getCreatedAt() == null) continue;
-            LocalDate day = f.getCreatedAt().toLocalDate();
-            byDate.computeIfAbsent(day, k -> new long[]{0, 0});
-            byDate.get(day)[0] += f.getSize();  // bytes
-            byDate.get(day)[1] += 1;            // count
+        for (DailyUploadAggregate row : rows) {
+            byDate.put(row.getDay(), new long[]{row.getTotalSize(), row.getFileCount()});
         }
 
         // Fill the full 30-day window so the chart has a contiguous x-axis

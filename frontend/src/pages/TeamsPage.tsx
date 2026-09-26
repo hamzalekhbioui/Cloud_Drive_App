@@ -28,12 +28,14 @@ export default function TeamsPage() {
   const [creating, setCreating] = useState(false)
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
   const [teamPendingDelete, setTeamPendingDelete] = useState<Team | null>(null)
+  const [filePage, setFilePage] = useState(0)
+  const [hasMoreFiles, setHasMoreFiles] = useState(false)
 
   useEffect(() => { load() }, [])
 
   useEffect(() => {
     if (selected) {
-      loadTeamFiles(selected.id)
+      loadTeamFiles(selected.id, 0, false)
     } else {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setTeamFiles([])
@@ -54,11 +56,13 @@ export default function TeamsPage() {
     }
   }
 
-  async function loadTeamFiles(teamId: number) {
+  async function loadTeamFiles(teamId: number, page = 0, append = false) {
     setLoadingFiles(true)
     try {
-      const { data } = await getTeamFiles(teamId)
-      setTeamFiles(data)
+      const { data } = await getTeamFiles(teamId, { page })
+      setTeamFiles((prev) => append ? [...prev, ...data.content] : data.content)
+      setFilePage(page)
+      setHasMoreFiles(!data.last)
     } catch {
       setError('Failed to load team files.')
     } finally {
@@ -400,6 +404,15 @@ export default function TeamsPage() {
                       </a>
                     </div>
                   ))}
+                  {hasMoreFiles && selected && (
+                    <button
+                      className="btn"
+                      style={{ alignSelf: 'center', marginTop: 12 }}
+                      onClick={() => loadTeamFiles(selected.id, filePage + 1, true)}
+                    >
+                      Load more
+                    </button>
+                  )}
                 </div>
               )}
             </div>

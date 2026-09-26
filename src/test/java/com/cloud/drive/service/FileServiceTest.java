@@ -6,6 +6,7 @@ import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.model.TeamMember;
 import com.cloud.drive.repository.FileRepository;
 import com.cloud.drive.repository.FolderRepository;
+import com.cloud.drive.repository.FileAiProcessingRepository;
 import com.cloud.drive.repository.TeamMemberRepository;
 import com.cloud.drive.storage.StorageService;
 import org.junit.jupiter.api.BeforeEach;
@@ -21,6 +22,9 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -38,6 +42,7 @@ class FileServiceTest {
     @Mock private TeamMemberRepository teamMemberRepository;
     @Mock private StorageService storageService;
     @Mock private UploadCompensationService uploadCompensationService;
+    @Mock private FileAiProcessingRepository aiProcessingRepository;
 
     @InjectMocks private FileService fileService;
 
@@ -79,15 +84,19 @@ class FileServiceTest {
     @Test
     void getFilesByUser_regeneratesSasUrlPerFile() {
         FileEntity file = ownedFile();
-        when(fileRepository.findByUserIdAndDeletedAtIsNull(OWNER)).thenReturn(List.of(file));
+        PageRequest pageable = PageRequest.of(0, 50);
+        when(fileRepository.findVisibleByUser(OWNER, "", pageable))
+                .thenReturn(new PageImpl<>(List.of(file), pageable, 1));
         when(blobStorageService.generateSasUrlForBlob("uuid-report.pdf"))
                 .thenReturn("https://blob/fresh-url");
 
-        List<FileResponseDto> result = fileService.getFilesByUser(OWNER);
+        Page<FileResponseDto> result = fileService.getFilesByUser(OWNER, null, pageable);
 
-        assertThat(result).hasSize(1);
-        assertThat(result.get(0).getUrl()).isEqualTo("https://blob/fresh-url");
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getUrl()).isEqualTo("https://blob/fresh-url");
         verify(blobStorageService).generateSasUrlForBlob("uuid-report.pdf");
+        verify(aiProcessingRepository).findAllById(List.of(42L));
+        verify(aiProcessingRepository, never()).findById(42L);
     }
 
     @Test

@@ -22,13 +22,17 @@ export default function FilesPage() {
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
   const [shareFileId, setShareFileId] = useState<number | null>(null)
   const [error, setError] = useState('')
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const [searchParams] = useSearchParams()
   const q = searchParams.get('q')?.toLowerCase() ?? ''
 
   useEffect(() => {
-    void getMyFiles().then(({ data }) => setFiles(data)).catch(() => setError('Failed to load files.')).finally(() => setLoading(false))
-  }, [])
+    void getMyFiles({ q: q || undefined }).then(({ data }) => {
+      setFiles(data.content); setPage(0); setHasMore(!data.last)
+    }).catch(() => setError('Failed to load files.')).finally(() => setLoading(false))
+  }, [q])
   useEffect(() => { localStorage.setItem('view', view) }, [view])
 
   async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -70,7 +74,16 @@ export default function FilesPage() {
     setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
 
   const byType = filter === 'all' ? files : files.filter((f) => fileKind(f.type) === filter)
-  const filtered = q ? byType.filter((f) => f.originalFileName.toLowerCase().includes(q)) : byType
+  const filtered = byType
+
+  async function loadMore() {
+    const next = page + 1
+    try {
+      const { data } = await getMyFiles({ page: next, q: q || undefined })
+      setFiles((prev) => [...prev, ...data.content])
+      setPage(next); setHasMore(!data.last)
+    } catch { setError('Failed to load more files.') }
+  }
 
   return (
     <div className="page-inner">
@@ -156,6 +169,12 @@ export default function FilesPage() {
               onStar={handleStar}
             />
           ))}
+        </div>
+      )}
+
+      {hasMore && !loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+          <button className="btn" onClick={loadMore}>Load more</button>
         </div>
       )}
 

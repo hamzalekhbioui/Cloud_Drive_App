@@ -10,6 +10,8 @@ import org.springframework.data.domain.*;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 import com.cloud.drive.util.AdminPaging;
 
 @RestController
@@ -26,9 +28,14 @@ public class AdminTeamController {
     @GetMapping
     public Page<AdminTeamDto> list(@RequestParam(defaultValue = "0") int page,
                                    @RequestParam(defaultValue = "20") int size) {
-        return teamRepository.findAll(AdminPaging.bounded(page, size,
-                        Sort.by(Sort.Direction.DESC, "createdAt")))
-                .map(this::toDto);
+        Page<Team> teams = teamRepository.findAll(AdminPaging.bounded(page, size,
+                Sort.by(Sort.Direction.DESC, "createdAt")));
+        List<Long> teamIds = teams.getContent().stream().map(Team::getId).toList();
+        Map<Long, List<TeamMember>> membersByTeam = teamIds.isEmpty()
+                ? Map.of()
+                : memberRepository.findByTeamIdIn(teamIds).stream()
+                        .collect(Collectors.groupingBy(TeamMember::getTeamId));
+        return teams.map(team -> toDto(team, membersByTeam.getOrDefault(team.getId(), List.of())));
     }
 
     @GetMapping("/{teamId}")
@@ -38,12 +45,16 @@ public class AdminTeamController {
     }
 
     private AdminTeamDto toDto(Team team) {
+        return toDto(team, memberRepository.findByTeamId(team.getId()));
+    }
+
+    private AdminTeamDto toDto(Team team, List<TeamMember> members) {
         AdminTeamDto dto = new AdminTeamDto();
         dto.setId(team.getId());
         dto.setName(team.getName());
         dto.setOwnerEmail(team.getOwnerEmail());
         dto.setCreatedAt(team.getCreatedAt());
-        dto.setMembers(memberRepository.findByTeamId(team.getId()).stream().map(this::toMember).toList());
+        dto.setMembers(members.stream().map(this::toMember).toList());
         return dto;
     }
 

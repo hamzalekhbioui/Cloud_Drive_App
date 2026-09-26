@@ -3,7 +3,6 @@ package com.cloud.drive.service;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.Plan;
 import com.cloud.drive.model.Subscription;
-import com.cloud.drive.repository.FileRepository;
 import com.cloud.drive.repository.PlanRepository;
 import com.cloud.drive.repository.SubscriptionRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,7 +27,6 @@ import static org.mockito.Mockito.when;
 class SubscriptionServiceTest {
 
     @Mock private SubscriptionRepository subRepo;
-    @Mock private FileRepository fileRepo;
     @Mock private PlanRepository planRepo;
 
     @InjectMocks private SubscriptionService subscriptionService;
@@ -87,5 +85,15 @@ class SubscriptionServiceTest {
         assertThat(response.getPlan()).isEqualTo("FREE");
         assertThat(response.getStatus()).isEqualTo("ACTIVE");
         verify(subRepo).save(any(Subscription.class));
+    }
+
+    @Test
+    void reconcileUsedBytes_usesOneBatchedAggregateUpdate() {
+        when(subRepo.reconcileUsedBytesFromFiles()).thenReturn(3);
+
+        subscriptionService.reconcileUsedBytes();
+
+        verify(subRepo).reconcileUsedBytesFromFiles();
+        verify(subRepo, never()).findAll();
     }
 }

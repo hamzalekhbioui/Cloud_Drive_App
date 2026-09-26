@@ -2,8 +2,8 @@ package com.cloud.drive.service;
 
 import com.cloud.drive.dto.analytics.ActivityItemDto;
 import com.cloud.drive.dto.analytics.BreakdownItemDto;
-import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.repository.FileRepository;
+import com.cloud.drive.repository.DailyUploadAggregate;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -49,10 +49,10 @@ class AnalyticsServiceTest {
     @Test
     void getActivity_fillsFullThirtyDayWindow() {
         LocalDate today = LocalDate.now();
-        FileEntity early = file(today.minusDays(29).atTime(10, 0), 10L);
-        FileEntity late = file(today.atTime(12, 0), 30L);
+        DailyUploadAggregate early = aggregate(today.minusDays(29), 10L, 1);
+        DailyUploadAggregate late = aggregate(today, 30L, 1);
 
-        when(fileRepository.findActiveByUserCreatedAtAfter(anyString(), org.mockito.ArgumentMatchers.any(LocalDateTime.class)))
+        when(fileRepository.aggregateDailyUploads(anyString(), org.mockito.ArgumentMatchers.any(LocalDateTime.class)))
                 .thenReturn(List.of(early, late));
 
         List<ActivityItemDto> activity = analyticsService.getActivity(EMAIL);
@@ -67,11 +67,11 @@ class AnalyticsServiceTest {
         assertThat(activity.get(29).getFileCount()).isEqualTo(1);
     }
 
-    private FileEntity file(LocalDateTime createdAt, long size) {
-        FileEntity file = new FileEntity();
-        file.setCreatedAt(createdAt);
-        file.setSize(size);
-        file.setType("application/pdf");
-        return file;
+    private DailyUploadAggregate aggregate(LocalDate day, long size, long count) {
+        DailyUploadAggregate row = org.mockito.Mockito.mock(DailyUploadAggregate.class);
+        when(row.getDay()).thenReturn(day);
+        when(row.getTotalSize()).thenReturn(size);
+        when(row.getFileCount()).thenReturn(count);
+        return row;
     }
 }

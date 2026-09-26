@@ -4,6 +4,8 @@ import com.cloud.drive.dto.admin.file.*;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.model.FileShare;
+import com.cloud.drive.model.FileAiProcessing;
+import com.cloud.drive.model.Team;
 import com.cloud.drive.repository.*;
 import com.cloud.drive.service.BlobStorageService;
 import com.cloud.drive.security.admin.AdminPrincipal;
@@ -15,6 +17,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class AdminFileService {
@@ -44,9 +49,23 @@ public class AdminFileService {
                                         Long minSize, Long maxSize,
                                         LocalDateTime fromDate, LocalDateTime toDate,
                                         Pageable pageable) {
-        return fileRepository.findAllForAdmin(blankToNull(owner), blankToNull(status),
-                        blankToNull(type), minSize, maxSize, fromDate, toDate, pageable)
-                .map(this::toFileDto);
+        Page<FileEntity> files = fileRepository.findAllForAdmin(blankToNull(owner), blankToNull(status),
+                blankToNull(type), minSize, maxSize, fromDate, toDate, pageable);
+        List<Long> fileIds = files.getContent().stream().map(FileEntity::getId).toList();
+        List<Long> teamIds = files.getContent().stream().map(FileEntity::getTeamId)
+                .filter(java.util.Objects::nonNull).distinct().toList();
+
+        Map<Long, Team> teamsById = teamIds.isEmpty() ? Map.of() : teamRepository.findAllById(teamIds).stream()
+                .collect(Collectors.toMap(Team::getId, Function.identity()));
+        Map<Long, FileAiProcessing> aiByFileId = fileIds.isEmpty() ? Map.of() : aiRepository.findAllById(fileIds).stream()
+                .collect(Collectors.toMap(FileAiProcessing::getFileId, Function.identity()));
+        Map<Long, List<FileShare>> sharesByFileId = fileIds.isEmpty() ? Map.of()
+                : shareRepository.findByFileIdInOrderByCreatedAtDesc(fileIds).stream()
+                        .collect(Collectors.groupingBy(FileShare::getFileId));
+
+        return files.map(file -> toFileDto(file,
+                file.getTeamId() == null ? null : teamsById.get(file.getTeamId()),
+                aiByFileId.get(file.getId()), sharesByFileId.getOrDefault(file.getId(), List.of())));
     }
 
     @Transactional(readOnly = true)
@@ -99,8 +118,14 @@ public class AdminFileService {
 
     @Transactional(readOnly = true)
     public Page<AdminShareDto> listShares(String owner, Boolean revoked, Pageable pageable) {
-        return shareRepository.findAllForAdmin(blankToNull(owner), revoked, pageable)
-                .map(this::toShareDto);
+        Page<FileShare> shares = shareRepository.findAllForAdmin(blankToNull(owner), revoked, pageable);
+        List<Long> fileIds = shares.getContent().stream().map(FileShare::getFileId).distinct().toList();
+        Map<Long, FileEntity> filesById = fileIds.isEmpty() ? Map.of() : fileRepository.findAllById(fileIds).stream()
+                .collect(Collectors.toMap(FileEntity::getId, Function.identity()));
+        return shares.map(share -> toShareDto(share,
+                filesById.containsKey(share.getFileId())
+                        ? filesById.get(share.getFileId()).getOriginalFileName()
+                        : null));
     }
 
     @Transactional
@@ -126,26 +151,39 @@ public class AdminFileService {
     }
 
     private AdminFileDto toFileDto(FileEntity file) {
+        Team team = file.getTeamId() == null ? null : teamRepository.findById(file.getTeamId()).orElse(null);
+        FileAiProcessing ai = aiRepository.findById(file.getId()).orElse(null);
+        List<FileShare> shares = shareRepository.findByFileIdOrderByCreatedAtDesc(file.getId());
+        return toFileDto(file, team, ai, shares);
+    }
+
+    private AdminFileDto toFileDto(FileEntity file, Team team, FileAiProcessing ai, List<FileShare> shares) {
         AdminFileDto dto = new AdminFileDto();
         dto.setId(file.getId());
         dto.setFileName(file.getOriginalFileName());
         dto.setOwnerEmail(file.getUserId());
         dto.setTeamId(file.getTeamId());
-        if (file.getTeamId() != null) {
-            teamRepository.findById(file.getTeamId()).ifPresent(team -> dto.setTeamName(team.getName()));
-        }
+        if (team != null) dto.setTeamName(team.getName());
         dto.setStatus(file.getStatus());
         dto.setType(file.getType());
         dto.setSize(file.getSize());
         dto.setCreatedAt(file.getCreatedAt());
         dto.setDeletedAt(file.getDeletedAt());
         dto.setBlobFileName(file.getBlobFileName());
-        aiRepository.findById(file.getId()).ifPresent(ai -> dto.setAiStatus(ai.getStatus()));
-        dto.setShares(shareRepository.findByFileIdOrderByCreatedAtDesc(file.getId()).stream().map(this::toShareDto).toList());
+        if (ai != null) dto.setAiStatus(ai.getStatus());
+        dto.setShares(shares.stream()
+                .map(share -> toShareDto(share, file.getOriginalFileName()))
+                .toList());
         return dto;
     }
 
     private AdminShareDto toShareDto(FileShare share) {
+        String fileName = fileRepository.findById(share.getFileId())
+                .map(FileEntity::getOriginalFileName).orElse(null);
+        return toShareDto(share, fileName);
+    }
+
+    private AdminShareDto toShareDto(FileShare share, String fileName) {
         AdminShareDto dto = new AdminShareDto();
         dto.setId(share.getId());
         dto.setFileId(share.getFileId());
@@ -156,7 +194,7 @@ public class AdminFileService {
         dto.setCreatedAt(share.getCreatedAt());
         dto.setExpiresAt(share.getExpiresAt());
         dto.setRevokedAt(share.getRevokedAt());
-        fileRepository.findById(share.getFileId()).ifPresent(file -> dto.setFileName(file.getOriginalFileName()));
+        dto.setFileName(fileName);
         return dto;
     }
 

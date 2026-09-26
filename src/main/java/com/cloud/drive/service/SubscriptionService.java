@@ -3,7 +3,6 @@ package com.cloud.drive.service;
 import com.cloud.drive.dto.subscription.SubscriptionResponse;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.Subscription;
-import com.cloud.drive.repository.FileRepository;
 import com.cloud.drive.model.Plan;
 import com.cloud.drive.model.SubscriptionStatus;
 import com.cloud.drive.repository.PlanRepository;
@@ -16,7 +15,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Service
 public class SubscriptionService {
@@ -24,12 +22,10 @@ public class SubscriptionService {
     private static final Logger log = LoggerFactory.getLogger(SubscriptionService.class);
 
     private final SubscriptionRepository subRepo;
-    private final FileRepository fileRepo;
     private final PlanRepository planRepo;
 
-    public SubscriptionService(SubscriptionRepository subRepo, FileRepository fileRepo, PlanRepository planRepo) {
+    public SubscriptionService(SubscriptionRepository subRepo, PlanRepository planRepo) {
         this.subRepo = subRepo;
-        this.fileRepo = fileRepo;
         this.planRepo = planRepo;
     }
 
@@ -206,19 +202,7 @@ public class SubscriptionService {
     @Scheduled(fixedDelay = 6 * 60 * 60 * 1000, initialDelay = 60_000)
     @Transactional
     public void reconcileUsedBytes() {
-        List<Subscription> all = subRepo.findAll();
-        int corrected = 0;
-        for (Subscription sub : all) {
-            Long actual = fileRepo.sumSizeByUserIncludingTrash(sub.getUserEmail());
-            long actualBytes = actual != null ? actual : 0L;
-            if (sub.getUsedBytes() != actualBytes) {
-                log.warn("Quota drift detected for {}: counter={} actual={}",
-                        sub.getUserEmail(), sub.getUsedBytes(), actualBytes);
-                sub.setUsedBytes(actualBytes);
-                subRepo.save(sub);
-                corrected++;
-            }
-        }
+        int corrected = subRepo.reconcileUsedBytesFromFiles();
         if (corrected > 0) {
             log.info("Quota reconciliation: corrected {} subscription(s)", corrected);
         }

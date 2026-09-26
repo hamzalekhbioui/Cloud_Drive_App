@@ -13,6 +13,51 @@ import org.springframework.data.domain.Pageable;
 public interface FileRepository extends JpaRepository<FileEntity, Long> {
     @Query("""
             SELECT f FROM FileEntity f
+            WHERE f.userId = :userId
+              AND f.deletedAt IS NULL
+              AND f.status = 'ACTIVE'
+              AND (:query = '' OR LOWER(f.originalFileName) LIKE LOWER(CONCAT('%', :query, '%')))
+            """)
+    Page<FileEntity> findVisibleByUser(@Param("userId") String userId,
+                                       @Param("query") String query,
+                                       Pageable pageable);
+
+    @Query("""
+            SELECT f FROM FileEntity f
+            WHERE f.userId = :userId
+              AND f.starred = true
+              AND f.deletedAt IS NULL
+              AND f.status = 'ACTIVE'
+              AND (:query = '' OR LOWER(f.originalFileName) LIKE LOWER(CONCAT('%', :query, '%')))
+            """)
+    Page<FileEntity> findVisibleStarredByUser(@Param("userId") String userId,
+                                              @Param("query") String query,
+                                              Pageable pageable);
+
+    @Query("""
+            SELECT f FROM FileEntity f
+            WHERE f.userId = :userId
+              AND f.deletedAt IS NOT NULL
+              AND f.status = 'ACTIVE'
+              AND (:query = '' OR LOWER(f.originalFileName) LIKE LOWER(CONCAT('%', :query, '%')))
+            """)
+    Page<FileEntity> findTrashByUser(@Param("userId") String userId,
+                                     @Param("query") String query,
+                                     Pageable pageable);
+
+    @Query("""
+            SELECT f FROM FileEntity f
+            WHERE f.teamId = :teamId
+              AND f.deletedAt IS NULL
+              AND f.status = 'ACTIVE'
+              AND (:query = '' OR LOWER(f.originalFileName) LIKE LOWER(CONCAT('%', :query, '%')))
+            """)
+    Page<FileEntity> findVisibleByTeam(@Param("teamId") Long teamId,
+                                       @Param("query") String query,
+                                       Pageable pageable);
+
+    @Query("""
+            SELECT f FROM FileEntity f
             WHERE (:owner IS NULL OR LOWER(f.userId) LIKE LOWER(CONCAT('%', :owner, '%')))
               AND (:status IS NULL OR f.status = :status)
               AND (:type IS NULL OR LOWER(f.type) LIKE LOWER(CONCAT('%', :type, '%')))
@@ -31,14 +76,7 @@ public interface FileRepository extends JpaRepository<FileEntity, Long> {
                                      Pageable pageable);
 
     // ── existing queries ────────────────────────────────────────────────────
-    List<FileEntity> findByUserIdAndDeletedAtIsNull(String userId);
-    List<FileEntity> findByUserIdAndDeletedAtIsNotNull(String userId);
     List<FileEntity> findByDeletedAtBeforeAndStatusNot(LocalDateTime cutoff, String status);
-    List<FileEntity> findByUserIdAndStarredTrueAndDeletedAtIsNull(String userId);
-    List<FileEntity> findByTeamIdAndDeletedAtIsNull(Long teamId);
-    
-    @Query("SELECT f FROM FileEntity f WHERE f.teamId = :teamId AND f.deletedAt IS NULL AND (f.status = 'ACTIVE' OR f.status IS NULL)")
-    List<FileEntity> findActiveByTeamId(@Param("teamId") Long teamId);
 
     /** PENDING uploads for a user (used during the two-phase direct upload handshake). */
     List<FileEntity> findByUserIdAndStatusAndDeletedAtIsNull(String userId, String status);
@@ -82,7 +120,19 @@ public interface FileRepository extends JpaRepository<FileEntity, Long> {
     /** Top 10 largest active files for a user (Spring Data "Top" keyword). */
     List<FileEntity> findTop10ByUserIdAndDeletedAtIsNullOrderBySizeDesc(String userId);
 
-    /** Active files uploaded on or after the given date (for activity chart). */
-    @Query("SELECT f FROM FileEntity f WHERE f.userId = :userId AND f.deletedAt IS NULL AND f.createdAt >= :since ORDER BY f.createdAt ASC")
-    List<FileEntity> findActiveByUserCreatedAtAfter(@Param("userId") String userId, @Param("since") LocalDateTime since);
+    /** Daily activity is aggregated in SQL so high-volume users do not load every file row. */
+    @Query(value = """
+            SELECT CAST(created_at AS DATE) AS day,
+                   COUNT(*) AS fileCount,
+                   COALESCE(SUM(size), 0) AS totalSize
+              FROM files
+             WHERE user_id = :userId
+               AND deleted_at IS NULL
+               AND status = 'ACTIVE'
+               AND created_at >= :since
+             GROUP BY CAST(created_at AS DATE)
+             ORDER BY CAST(created_at AS DATE)
+            """, nativeQuery = true)
+    List<DailyUploadAggregate> aggregateDailyUploads(@Param("userId") String userId,
+                                                     @Param("since") LocalDateTime since);
 }

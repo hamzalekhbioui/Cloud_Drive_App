@@ -4,6 +4,7 @@ import com.azure.storage.blob.BlobServiceClient;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.repository.FileRepository;
 import com.cloud.drive.repository.SubscriptionRepository;
+import com.cloud.drive.service.SubscriptionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -101,6 +102,7 @@ class CriticalSecurityE2ETest {
     @Autowired private JdbcTemplate jdbcTemplate;
     @Autowired private FileRepository fileRepository;
     @Autowired private SubscriptionRepository subscriptionRepository;
+    @Autowired private SubscriptionService subscriptionService;
     @Autowired private BlobServiceClient blobServiceClient;
 
     private final HttpClient httpClient = HttpClient.newBuilder()
@@ -116,10 +118,22 @@ class CriticalSecurityE2ETest {
     void directUploadRunsRealMigrationsAndRoundTripsThroughAzurite() throws Exception {
         assertThat(jdbcTemplate.queryForObject(
                 "SELECT version FROM flyway_schema_history WHERE success ORDER BY installed_rank DESC LIMIT 1",
-                String.class)).isEqualTo("17");
+                String.class)).isEqualTo("18");
+        assertThat(jdbcTemplate.queryForList(
+                "SELECT indexname FROM pg_indexes WHERE schemaname = 'public'", String.class))
+                .contains("idx_files_user_active_created_id", "idx_files_user_starred_created_id",
+                        "idx_files_user_trash_deleted_id", "idx_files_team_active_created_id",
+                        "idx_file_shares_recipient_active_created_id");
 
         String owner = register("owner@example.com");
         UploadedFile uploaded = upload(owner, "pixel.png", PNG, null);
+
+        mockMvc.perform(get("/api/files/me")
+                        .param("size", "500")
+                        .header("Authorization", bearer(owner)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.size").value(100))
+                .andExpect(jsonPath("$.content[0].id").value(uploaded.id()));
 
         FileEntity stored = fileRepository.findById(uploaded.id()).orElseThrow();
         assertThat(stored.getStatus()).isEqualTo("ACTIVE");
@@ -156,6 +170,34 @@ class CriticalSecurityE2ETest {
                 .isZero();
         assertThat(blobServiceClient.getBlobContainerClient(CONTAINER_NAME)
                 .getBlobClient(target.get("blobKey").asText()).exists()).isFalse();
+    }
+
+    @Test
+    void quotaReconciliationRepairsAllSubscriptionsWithOneAggregateUpdate() throws Exception {
+        jdbcTemplate.update("""
+                INSERT INTO subscriptions(user_email, plan, status, plan_id, used_bytes, version)
+                SELECT account.email, 'FREE', 'ACTIVE', p.id, account.used_bytes, 0
+                  FROM (VALUES ('files@example.com', 999), ('empty@example.com', 777))
+                       AS account(email, used_bytes)
+                  JOIN plans p ON p.slug = 'FREE'
+                """);
+        jdbcTemplate.update("""
+                INSERT INTO files(original_file_name, blob_file_name, size, type, user_id, created_at, starred, status)
+                VALUES ('one.txt', 'one', 11, 'text/plain', 'files@example.com', NOW(), FALSE, 'ACTIVE'),
+                       ('two.txt', 'two', 13, 'text/plain', 'files@example.com', NOW(), FALSE, 'ACTIVE')
+                """);
+
+        subscriptionService.reconcileUsedBytes();
+
+        var daily = fileRepository.aggregateDailyUploads(
+                "files@example.com", java.time.LocalDateTime.now().minusDays(1));
+        assertThat(daily).hasSize(1);
+        assertThat(daily.get(0).getTotalSize()).isEqualTo(24);
+        assertThat(daily.get(0).getFileCount()).isEqualTo(2);
+        assertThat(subscriptionRepository.findByUserEmail("files@example.com").orElseThrow().getUsedBytes())
+                .isEqualTo(24);
+        assertThat(subscriptionRepository.findByUserEmail("empty@example.com").orElseThrow().getUsedBytes())
+                .isZero();
     }
 
     @Test
@@ -243,10 +285,10 @@ class CriticalSecurityE2ETest {
         MvcResult recipientList = mockMvc.perform(get("/api/shares/shared-with-me")
                         .header("Authorization", bearer(recipient)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].id").value(shareId))
-                .andExpect(jsonPath("$[0].permission").value("VIEW"))
-                .andExpect(jsonPath("$[0].token").doesNotExist())
-                .andExpect(jsonPath("$[0].url").doesNotExist())
+                .andExpect(jsonPath("$.content[0].id").value(shareId))
+                .andExpect(jsonPath("$.content[0].permission").value("VIEW"))
+                .andExpect(jsonPath("$.content[0].token").doesNotExist())
+                .andExpect(jsonPath("$.content[0].url").doesNotExist())
                 .andReturn();
         assertThat(recipientList.getResponse().getContentAsString())
                 .doesNotContain(token)

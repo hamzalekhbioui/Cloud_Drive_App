@@ -16,13 +16,23 @@ export default function TrashPage() {
   const [files, setFiles] = useState<FileItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
 
   useEffect(() => {
     getTrashFiles()
-      .then(({ data }) => setFiles(data))
+      .then(({ data }) => { setFiles(data.content); setHasMore(!data.last) })
       .catch(() => setError('Failed to load trash.'))
       .finally(() => setLoading(false))
   }, [])
+
+  async function loadMore() {
+    const next = page + 1
+    try {
+      const { data } = await getTrashFiles({ page: next })
+      setFiles((prev) => [...prev, ...data.content]); setPage(next); setHasMore(!data.last)
+    } catch { setError('Failed to load more trash items.') }
+  }
 
   async function handleRestore(id: number) {
     try {
@@ -40,10 +50,17 @@ export default function TrashPage() {
   }
 
   async function handleEmptyTrash() {
-    if (!confirm(`Permanently delete all ${files.length} files in trash? This cannot be undone.`)) return
+    if (!confirm('Permanently delete every file in trash? This cannot be undone.')) return
     try {
-      await Promise.all(files.map((f) => permanentlyDeleteFile(f.id)))
+      let batch = files
+      while (batch.length > 0) {
+        await Promise.all(batch.map((f) => permanentlyDeleteFile(f.id)))
+        const { data } = await getTrashFiles({ page: 0 })
+        batch = data.content
+      }
       setFiles([])
+      setPage(0)
+      setHasMore(false)
     } catch { setError('Failed to empty trash.') }
   }
 
@@ -122,6 +139,12 @@ export default function TrashPage() {
               </div>
             )
           })}
+        </div>
+      )}
+
+      {hasMore && !loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+          <button className="btn" onClick={loadMore}>Load more</button>
         </div>
       )}
     </div>

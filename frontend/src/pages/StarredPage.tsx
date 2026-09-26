@@ -12,13 +12,23 @@ export default function StarredPage() {
   const [error, setError] = useState('')
   const [view, setView] = useState<'grid' | 'list'>(() => (localStorage.getItem('view') as 'grid' | 'list') || 'grid')
   const [previewFile, setPreviewFile] = useState<FileItem | null>(null)
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
 
   useEffect(() => {
     getStarredFiles()
-      .then(({ data }) => setFiles(data))
+      .then(({ data }) => { setFiles(data.content); setHasMore(!data.last) })
       .catch(() => setError('Failed to load starred files.'))
       .finally(() => setLoading(false))
   }, [])
+
+  async function loadMore() {
+    const next = page + 1
+    try {
+      const { data } = await getStarredFiles({ page: next })
+      setFiles((prev) => [...prev, ...data.content]); setPage(next); setHasMore(!data.last)
+    } catch { setError('Failed to load more starred files.') }
+  }
 
   async function handleStar(id: number) {
     try {
@@ -67,6 +77,12 @@ export default function StarredPage() {
           {files.map((f) => (
             <FileRow key={f.id} file={f} onOpen={setPreviewFile} onStar={handleStar} />
           ))}
+        </div>
+      )}
+
+      {hasMore && !loading && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+          <button className="btn" onClick={loadMore}>Load more</button>
         </div>
       )}
 

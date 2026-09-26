@@ -31,6 +31,14 @@ export interface CreateSharePayload {
   expiresAt?: string | null
 }
 
+export interface PageResponse<T> {
+  content: T[]
+  number: number
+  totalElements: number
+  totalPages: number
+  last: boolean
+}
+
 export const createShare = (fileId: number, payload: CreateSharePayload) =>
   client.post<ShareItem>(`/documents/${fileId}/shares`, payload)
 
@@ -43,8 +51,8 @@ export const revokeShareForFile = (fileId: number) =>
 export const revokeShare = (shareId: number) =>
   client.delete(`/shares/${shareId}`)
 
-export const getSharedWithMe = () =>
-  client.get<SharedWithMeItem[]>('/shares/shared-with-me')
+export const getSharedWithMe = (page = 0, size = 50) =>
+  client.get<PageResponse<SharedWithMeItem>>('/shares/shared-with-me', { params: { page, size } })
 
 export const fetchSharedFile = (shareId: number, download = false) =>
   client.get<Blob>(`/shares/shared-with-me/${shareId}/stream`, {

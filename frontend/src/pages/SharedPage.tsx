@@ -7,13 +7,23 @@ export default function SharedPage() {
   const [items, setItems] = useState<SharedWithMeItem[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [page, setPage] = useState(0)
+  const [hasMore, setHasMore] = useState(false)
 
   useEffect(() => {
     getSharedWithMe()
-      .then(({ data }) => setItems(data))
+      .then(({ data }) => { setItems(data.content); setHasMore(!data.last) })
       .catch(() => setError('Failed to load shared files.'))
       .finally(() => setLoading(false))
   }, [])
+
+  async function loadMore() {
+    const next = page + 1
+    try {
+      const { data } = await getSharedWithMe(next)
+      setItems((prev) => [...prev, ...data.content]); setPage(next); setHasMore(!data.last)
+    } catch { setError('Failed to load more shared files.') }
+  }
 
   if (loading) return <div className="page-inner"><div style={{ padding: 40, textAlign: 'center', color: 'var(--ink-3)' }}>Loading…</div></div>
 
@@ -42,6 +52,12 @@ export default function SharedPage() {
           {items.map((item) => (
             <SharedRow key={item.id} item={item} />
           ))}
+        </div>
+      )}
+
+      {hasMore && (
+        <div style={{ display: 'flex', justifyContent: 'center', marginTop: 24 }}>
+          <button className="btn" onClick={loadMore}>Load more</button>
         </div>
       )}
     </div>

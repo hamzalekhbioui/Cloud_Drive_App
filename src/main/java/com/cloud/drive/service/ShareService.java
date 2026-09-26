@@ -9,11 +9,14 @@ import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.model.FileShare;
 import com.cloud.drive.repository.FileRepository;
 import com.cloud.drive.repository.FileShareRepository;
+import com.cloud.drive.repository.SharedFileView;
 import com.cloud.drive.util.TokenGenerator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -63,7 +66,7 @@ public class ShareService {
         if (!file.getUserId().equals(ownerEmail)) {
             throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
         }
-        return shareRepo.findByFileId(fileId).stream()
+        return shareRepo.findTop100ByFileIdOrderByCreatedAtDesc(fileId).stream()
                 .map(s -> toResponse(s, file.getOriginalFileName()))
                 .collect(Collectors.toList());
     }
@@ -85,22 +88,15 @@ public class ShareService {
         if (!file.getUserId().equals(ownerEmail)) {
             throw new ApiException("Access denied", HttpStatus.FORBIDDEN);
         }
-        return shareRepo.findByFileId(fileId).stream()
-                .filter(s -> s.getRevokedAt() == null)
+        return shareRepo.findTop100ByFileIdAndRevokedAtIsNullOrderByCreatedAtDesc(fileId).stream()
                 .map(s -> toResponse(s, file.getOriginalFileName()))
                 .collect(Collectors.toList());
     }
 
-    public List<SharedFileResponse> getFilesSharedWithMe(String userEmail) {
-        return shareRepo.findBySharedWithEmail(userEmail).stream()
-                .filter(s -> s.getRevokedAt() == null)
-                .filter(s -> s.getExpiresAt() == null || s.getExpiresAt().isAfter(LocalDateTime.now()))
-                .map(s -> {
-                    FileEntity file = fileRepo.findById(s.getFileId()).orElse(null);
-                    String fileName = file != null ? file.getOriginalFileName() : "(deleted)";
-                    return toRecipientResponse(s, file, fileName);
-                })
-                .collect(Collectors.toList());
+    @Transactional(readOnly = true)
+    public Page<SharedFileResponse> getFilesSharedWithMe(String userEmail, Pageable pageable) {
+        return shareRepo.findAvailableSharedWith(userEmail, LocalDateTime.now(), pageable)
+                .map(this::toRecipientResponse);
     }
 
     /** Resolves a public token and returns the file metadata (no auth required). */
@@ -187,19 +183,17 @@ public class ShareService {
      * Intentionally omits the token so recipients cannot bypass permission checks
      * via the unauthenticated public-stream endpoint.
      */
-    private SharedFileResponse toRecipientResponse(FileShare s, FileEntity file, String fileName) {
+    private SharedFileResponse toRecipientResponse(SharedFileView s) {
         SharedFileResponse r = new SharedFileResponse();
         r.setId(s.getId());
         r.setFileId(s.getFileId());
-        r.setFileName(fileName);
+        r.setFileName(s.getFileName());
         r.setOwnerEmail(s.getOwnerEmail());
         r.setPermission(s.getPermission());
         r.setCreatedAt(s.getCreatedAt());
         r.setExpiresAt(s.getExpiresAt());
-        if (file != null) {
-            r.setSize(file.getSize());
-            r.setType(file.getType());
-        }
+        r.setSize(s.getSize());
+        r.setType(s.getType());
         return r;
     }
 }

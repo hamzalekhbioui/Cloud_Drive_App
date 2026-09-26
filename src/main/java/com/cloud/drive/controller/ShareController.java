@@ -4,6 +4,7 @@ import com.cloud.drive.dto.share.CreateShareRequest;
 import com.cloud.drive.dto.share.SharedFileResponse;
 import com.cloud.drive.dto.share.ShareResponse;
 import com.cloud.drive.dto.share.PublicShareResponse;
+import com.cloud.drive.dto.PageResponse;
 import com.cloud.drive.exception.ApiException;
 import com.cloud.drive.model.FileEntity;
 import com.cloud.drive.model.FileShare;
@@ -17,9 +18,14 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.web.PageableDefault;
+import com.cloud.drive.util.PageLimits;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 @RestController
 @RequestMapping
@@ -69,8 +75,12 @@ public class ShareController {
      * so recipients cannot bypass permission checks via the public stream endpoint.
      */
     @GetMapping("/api/shares/shared-with-me")
-    public List<SharedFileResponse> sharedWithMe(@AuthenticationPrincipal UserDetails ud) {
-        return shareService.getFilesSharedWithMe(ud.getUsername());
+    public PageResponse<SharedFileResponse> sharedWithMe(
+            @PageableDefault(size = 50) Pageable pageable,
+            @AuthenticationPrincipal UserDetails ud) {
+        return PageResponse.from(shareService.getFilesSharedWithMe(ud.getUsername(),
+                PageLimits.bounded(pageable, Set.of("createdAt", "expiresAt", "id", "fileId"),
+                        "createdAt", Sort.Direction.DESC)));
     }
 
     @GetMapping("/api/shares/shared-with-me/{shareId}/stream")
