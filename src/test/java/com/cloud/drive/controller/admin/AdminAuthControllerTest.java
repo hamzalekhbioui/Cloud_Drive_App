@@ -10,12 +10,12 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -54,14 +54,13 @@ class AdminAuthControllerTest {
         admin.setName("Admin");
         admin.setStatus(AdminUser.STATUS_ACTIVE);
         when(adminAuthService.me("admin@example.com")).thenReturn(admin);
-        MockMvc mvc = standaloneSetup(controller).build();
 
-        mvc.perform(get("/api/admin/auth/me")
-                .principal(new UsernamePasswordAuthenticationToken(
-                        new AdminPrincipal(7L, "admin@example.com", "Admin"), null)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(7))
-                .andExpect(jsonPath("$.email").value("admin@example.com"))
-                .andExpect(jsonPath("$.status").value("ACTIVE"));
+        var response = controller.me(new AdminPrincipal(7L, "admin@example.com", "Admin"));
+
+        assertThat(response.getStatusCode().is2xxSuccessful()).isTrue();
+        assertThat(response.getBody()).containsEntry("id", 7L)
+                .containsEntry("email", "admin@example.com")
+                .containsEntry("status", "ACTIVE");
+        verify(adminAuthService).me("admin@example.com");
     }
 }

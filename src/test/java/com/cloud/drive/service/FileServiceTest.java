@@ -37,6 +37,7 @@ class FileServiceTest {
     @Mock private SubscriptionService subscriptionService;
     @Mock private TeamMemberRepository teamMemberRepository;
     @Mock private StorageService storageService;
+    @Mock private UploadCompensationService uploadCompensationService;
 
     @InjectMocks private FileService fileService;
 
@@ -268,8 +269,7 @@ class FileServiceTest {
                 .hasFieldOrPropertyWithValue("status", HttpStatus.UNSUPPORTED_MEDIA_TYPE);
 
         verify(storageService).delete("uuid-report.pdf");
-        verify(fileRepository).delete(pending);
-        verify(subscriptionService).releaseQuota(OWNER, 1024L);
+        verify(uploadCompensationService).rejectPendingUpload(42L, OWNER, 1024L);
         verify(fileRepository, never()).save(any(FileEntity.class));
     }
 }

@@ -48,6 +48,7 @@ public class FileService {
     private final FolderRepository folderRepository;
     private final TeamMemberRepository teamMemberRepository;
     private final SubscriptionService subscriptionService;
+    private final UploadCompensationService uploadCompensationService;
     private final FileAiProcessingRepository aiProcessingRepository;
     private final AiProcessingService aiProcessingService;
     private final ApplicationEventPublisher eventPublisher;
@@ -59,7 +60,7 @@ public class FileService {
                        TeamMemberRepository teamMemberRepository,
                        SubscriptionService subscriptionService) {
         this(blobStorageService, storageService, fileRepository, folderRepository, teamMemberRepository,
-                subscriptionService, null, null, null);
+                subscriptionService, null, null, null, null);
     }
 
     @Autowired
@@ -69,6 +70,7 @@ public class FileService {
                        FolderRepository folderRepository,
                        TeamMemberRepository teamMemberRepository,
                        SubscriptionService subscriptionService,
+                       UploadCompensationService uploadCompensationService,
                        FileAiProcessingRepository aiProcessingRepository,
                        AiProcessingService aiProcessingService,
                        ApplicationEventPublisher eventPublisher) {
@@ -78,6 +80,7 @@ public class FileService {
         this.folderRepository = folderRepository;
         this.teamMemberRepository = teamMemberRepository;
         this.subscriptionService = subscriptionService;
+        this.uploadCompensationService = uploadCompensationService;
         this.aiProcessingRepository = aiProcessingRepository;
         this.aiProcessingService = aiProcessingService;
         this.eventPublisher = eventPublisher;
@@ -222,8 +225,8 @@ public class FileService {
             } catch (RuntimeException cleanupFailure) {
                 log.error("Failed to delete rejected upload blob {}", f.getBlobFileName(), cleanupFailure);
             }
-            fileRepository.delete(f);
-            releaseReservedQuota(f);
+            uploadCompensationService.rejectPendingUpload(
+                    f.getId(), f.getUserId(), f.getSize() == null ? 0 : f.getSize());
             throw ex;
         }
         f.setStatus(STATUS_ACTIVE);
